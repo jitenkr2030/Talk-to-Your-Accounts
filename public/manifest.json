@@ -1,0 +1,16 @@
+{
+  "name": "Talk to Your Accounts",
+  "short_name": "Talk to Accounts",
+  "description": "AI-powered offline-first desktop accounting application",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#06b6d4",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
