@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "**/*.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "**/*.{js,css,png,jpg,jpeg,gif,svg,ico}",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        }
+      ]
+    },
+    {
+      "source": "/downloads/(.*)",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "attachment"
+        }
+      ]
+    }
+  ]
+}
