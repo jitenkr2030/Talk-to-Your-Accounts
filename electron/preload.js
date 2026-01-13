@@ -156,6 +156,20 @@ const audit = {
   search: (query, filters) => ipcRenderer.invoke('search-audit-logs', query, filters)
 };
 
+// Subscription APIs
+const subscription = {
+  getPlans: () => ipcRenderer.invoke('subscription/get-plans'),
+  getPlan: (planId) => ipcRenderer.invoke('subscription/get-plan', planId),
+  getSubscription: (userId) => ipcRenderer.invoke('subscription/get-subscription', userId),
+  create: (userId, planId, billingCycle) => ipcRenderer.invoke('subscription/create', userId, planId, billingCycle),
+  updateStatus: (userId, status, razorpaySubscriptionId) => ipcRenderer.invoke('subscription/update-status', userId, status, razorpaySubscriptionId),
+  getUsage: (userId) => ipcRenderer.invoke('subscription/get-usage', userId),
+  checkLimits: (userId) => ipcRenderer.invoke('subscription/check-limits', userId),
+  incrementUsage: (userId, type) => ipcRenderer.invoke('subscription/increment-usage', userId, type),
+  getPaymentHistory: (userId) => ipcRenderer.invoke('subscription/get-payment-history', userId),
+  recordPayment: (paymentData) => ipcRenderer.invoke('subscription/record-payment', paymentData)
+};
+
 // Expose protected APIs to renderer
 contextBridge.exposeInMainWorld('api', {
   // Business Info
@@ -198,7 +212,10 @@ contextBridge.exposeInMainWorld('api', {
   voice,
   errorDetection,
   audit,
-  
+
+  // Subscription & Monetization
+  subscription,
+
   // Utility
   ping: () => 'pong'
 });

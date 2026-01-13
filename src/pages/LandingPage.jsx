@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import useAppStore from '../stores/appStore';
 import AlertNotificationCenter from '../components/features/AlertNotificationCenter';
+import SubscriptionBanner from '../components/subscription/SubscriptionBanner';
+import PricingPlans from '../components/subscription/PricingPlans';
 
 const LandingPage = ({ onNavigate }) => {
   const {
@@ -28,12 +30,17 @@ const LandingPage = ({ onNavigate }) => {
     products,
     expenses,
     unreadAlertCount,
+    subscription,
     loadDashboardSummary,
     loadTransactions,
     loadParties,
     loadProducts,
     loadExpenses,
     loadAlerts,
+    loadSubscription,
+    loadPlans,
+    checkUsageLimits,
+    showPricingModal,
     addMessage
   } = useAppStore();
 
@@ -49,7 +56,13 @@ const LandingPage = ({ onNavigate }) => {
     loadParties();
     loadProducts();
     loadAlerts({});
-  }, []);
+    // Load subscription data
+    loadPlans();
+    if (currentUser?.id) {
+      loadSubscription(currentUser.id);
+      checkUsageLimits(currentUser.id);
+    }
+  }, [currentUser]);
 
   // Calculate derived metrics
   const todaySales = transactions
@@ -223,6 +236,9 @@ const LandingPage = ({ onNavigate }) => {
 
       {/* Dashboard Content */}
       <div className="p-8 flex-1">
+        {/* Subscription Banner */}
+        <SubscriptionBanner />
+
         {/* Welcome Section */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-slate-800">
@@ -442,6 +458,9 @@ const LandingPage = ({ onNavigate }) => {
         isOpen={showAlerts}
         onClose={() => setShowAlerts(false)}
       />
+
+      {/* Pricing Plans Modal */}
+      {subscription.showPricingModal && <PricingPlans />}
     </div>
   );
 };

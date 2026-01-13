@@ -411,6 +411,77 @@ class DatabaseManager {
         parameters TEXT,
         printed_at TEXT DEFAULT CURRENT_TIMESTAMP,
         printed_by TEXT
+      )`,
+
+      // Subscription Plans
+      `CREATE TABLE IF NOT EXISTS subscription_plans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        plan_id TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        monthly_price REAL NOT NULL,
+        yearly_price REAL NOT NULL,
+        currency TEXT DEFAULT 'INR',
+        max_transactions INTEGER DEFAULT 0,
+        max_parties INTEGER DEFAULT 0,
+        max_products INTEGER DEFAULT 0,
+        features TEXT,
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // User Subscriptions
+      `CREATE TABLE IF NOT EXISTS user_subscriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        plan_id TEXT NOT NULL,
+        subscription_status TEXT DEFAULT 'active',
+        billing_cycle TEXT DEFAULT 'monthly',
+        current_period_start TEXT,
+        current_period_end TEXT,
+        cancel_at_period_end INTEGER DEFAULT 0,
+        razorpay_subscription_id TEXT,
+        razorpay_customer_id TEXT,
+        license_key TEXT UNIQUE,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (plan_id) REFERENCES subscription_plans(plan_id)
+      )`,
+
+      // Usage Tracking
+      `CREATE TABLE IF NOT EXISTS usage_tracker (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        month TEXT NOT NULL,
+        transaction_count INTEGER DEFAULT 0,
+        party_count INTEGER DEFAULT 0,
+        product_count INTEGER DEFAULT 0,
+        voice_commands INTEGER DEFAULT 0,
+        reports_generated INTEGER DEFAULT 0,
+        last_reset_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        UNIQUE(user_id, month)
+      )`,
+
+      // Payment Records
+      `CREATE TABLE IF NOT EXISTS payment_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        subscription_id INTEGER,
+        razorpay_payment_id TEXT UNIQUE,
+        razorpay_order_id TEXT,
+        amount REAL NOT NULL,
+        currency TEXT DEFAULT 'INR',
+        payment_status TEXT DEFAULT 'pending',
+        payment_method TEXT,
+        invoice_url TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (subscription_id) REFERENCES user_subscriptions(id)
       )`
     ];
 
@@ -457,6 +528,9 @@ class DatabaseManager {
     // Initialize default tax settings
     this.initializeDefaultTaxSettings();
 
+    // Initialize subscription plans
+    this.initializeSubscriptionPlans();
+
     return this;
   }
 
@@ -492,6 +566,271 @@ class DatabaseManager {
       catStmt.run(cat.name, cat.type, cat.gst_rate);
     }
   }
+
+  // Initialize subscription plans
+  initializeSubscriptionPlans() {
+    const plans = [
+      {
+        plan_id: 'free',
+        name: 'Free',
+        description: 'Perfect for getting started with basic accounting',
+        monthly_price: 0,
+        yearly_price: 0,
+        max_transactions: 50,
+        max_parties: 10,
+        max_products: 20,
+        features: JSON.stringify([
+          'Up to 50 transactions per month',
+          'Up to 10 parties/ledgers',
+          'Up to 20 products',
+          'Basic reports',
+          'GST calculations',
+          'Email support'
+        ])
+      },
+      {
+        plan_id: 'starter',
+        name: 'Starter',
+        description: 'Ideal for small businesses with growing needs',
+        monthly_price: 499,
+        yearly_price: 4990,
+        max_transactions: 500,
+        max_parties: 50,
+        max_products: 100,
+        features: JSON.stringify([
+          'Up to 500 transactions per month',
+          'Up to 50 parties/ledgers',
+          'Up to 100 products',
+          'All reports included',
+          'GST filing assistance',
+          'Priority email support',
+          'Bank reconciliation',
+          'Voice commands (Hindi/English)'
+        ])
+      },
+      {
+        plan_id: 'professional',
+        name: 'Professional',
+        description: 'Complete solution for established businesses',
+        monthly_price: 1499,
+        yearly_price: 14990,
+        max_transactions: 5000,
+        max_parties: 500,
+        max_products: 1000,
+        features: JSON.stringify([
+          'Up to 5,000 transactions per month',
+          'Up to 500 parties/ledgers',
+          'Up to 1,000 products',
+          'All reports included',
+          'Advanced analytics',
+          'Multi-user access',
+          'API access',
+          'Dedicated phone support',
+          'Custom integrations',
+          'Data export',
+          'Automated backups'
+        ])
+      }
+    ];
+
+    const stmt = this.db.prepare(`
+      INSERT OR IGNORE INTO subscription_plans 
+      (plan_id, name, description, monthly_price, yearly_price, max_transactions, max_parties, max_products, features)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const plan of plans) {
+      stmt.run(
+        plan.plan_id,
+        plan.name,
+        plan.description,
+        plan.monthly_price,
+        plan.yearly_price,
+        plan.max_transactions,
+        plan.max_parties,
+        plan.max_products,
+        plan.features
+      );
+    }
+  }
+
+  // ==================== SUBSCRIPTION MANAGEMENT ====================
+  getAllPlans() {
+    return this.db.prepare('SELECT * FROM subscription_plans WHERE is_active = 1 ORDER BY monthly_price ASC').all();
+  }
+
+  getPlanById(planId) {
+    return this.db.prepare('SELECT * FROM subscription_plans WHERE plan_id = ?').get(planId);
+  }
+
+  getUserSubscription(userId) {
+    const subscription = this.db.prepare(`
+      SELECT us.*, sp.*
+      FROM user_subscriptions us
+      JOIN subscription_plans sp ON us.plan_id = sp.plan_id
+      WHERE us.user_id = ? AND us.subscription_status = 'active'
+      ORDER BY us.created_at DESC
+      LIMIT 1
+    `).get(userId);
+
+    return subscription;
+  }
+
+  createSubscription(userId, planId, billingCycle = 'monthly') {
+    const licenseKey = this.generateLicenseKey();
+    
+    // Check if user already has a subscription
+    const existing = this.db.prepare('SELECT id FROM user_subscriptions WHERE user_id = ? AND subscription_status = ?').get(userId, 'active');
+    
+    if (existing) {
+      // Update existing subscription
+      this.db.prepare(`
+        UPDATE user_subscriptions 
+        SET plan_id = ?, billing_cycle = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = ?
+      `).run(planId, billingCycle, userId);
+    } else {
+      // Create new subscription
+      const now = new Date().toISOString();
+      const periodEnd = new Date();
+      periodEnd.setMonth(periodEnd.getMonth() + (billingCycle === 'yearly' ? 12 : 1));
+      
+      this.db.prepare(`
+        INSERT INTO user_subscriptions 
+        (user_id, plan_id, billing_cycle, current_period_start, current_period_end, license_key)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(userId, planId, billingCycle, now, periodEnd.toISOString(), licenseKey);
+    }
+    
+    // Initialize usage tracker for current month
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const usageExists = this.db.prepare('SELECT id FROM usage_tracker WHERE user_id = ? AND month = ?').get(userId, currentMonth);
+    
+    if (!usageExists) {
+      this.db.prepare(`
+        INSERT INTO usage_tracker (user_id, month)
+        VALUES (?, ?)
+      `).run(userId, currentMonth);
+    }
+    
+    return this.getUserSubscription(userId);
+  }
+
+  updateSubscriptionStatus(userId, status, razorpaySubscriptionId = null) {
+    const updates = { subscription_status: status, updated_at: new Date().toISOString() };
+    if (razorpaySubscriptionId) {
+      updates.razorpay_subscription_id = razorpaySubscriptionId;
+    }
+    
+    const setClause = Object.keys(updates).map(key => `${key} = ?`).join(', ');
+    const values = Object.values(updates);
+    
+    this.db.prepare(`UPDATE user_subscriptions SET ${setClause} WHERE user_id = ?`).run(...values, userId);
+    
+    return true;
+  }
+
+  generateLicenseKey() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let key = 'TTYA-';
+    for (let i = 0; i < 4; i++) key += chars.charAt(Math.floor(Math.random() * chars.length));
+    key += '-';
+    for (let i = 0; i < 4; i++) key += chars.charAt(Math.floor(Math.random() * chars.length));
+    key += '-';
+    for (let i = 0; i < 4; i++) key += chars.charAt(Math.floor(Math.random() * chars.length));
+    key += '-';
+    for (let i = 0; i < 4; i++) key += chars.charAt(Math.floor(Math.random() * chars.length));
+    return key;
+  }
+
+  // Usage tracking
+  getUsage(userId) {
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    let usage = this.db.prepare('SELECT * FROM usage_tracker WHERE user_id = ? AND month = ?').get(userId, currentMonth);
+    
+    if (!usage) {
+      this.db.prepare('INSERT INTO usage_tracker (user_id, month) VALUES (?, ?)').run(userId, currentMonth);
+      usage = this.db.prepare('SELECT * FROM usage_tracker WHERE user_id = ? AND month = ?').get(userId, currentMonth);
+    }
+    
+    // Get current counts
+    const transactionCount = this.db.prepare('SELECT COUNT(*) as count FROM transactions WHERE created_at LIKE ?').get(`${currentMonth}%`).count;
+    const partyCount = this.db.prepare('SELECT COUNT(*) as count FROM parties WHERE is_active = 1').get().count;
+    const productCount = this.db.prepare('SELECT COUNT(*) as count FROM products WHERE is_active = 1').get().count;
+    
+    return {
+      ...usage,
+      current_month: currentMonth,
+      transaction_count: transactionCount,
+      party_count: partyCount,
+      product_count: productCount
+    };
+  }
+
+  incrementUsage(userId, type) {
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const validTypes = ['transaction_count', 'party_count', 'product_count', 'voice_commands', 'reports_generated'];
+    
+    if (!validTypes.includes(type)) return false;
+    
+    this.db.prepare(`
+      UPDATE usage_tracker 
+      SET ${type} = ${type} + 1, updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = ? AND month = ?
+    `).run(userId, currentMonth);
+    
+    return true;
+  }
+
+  checkUsageLimits(userId) {
+    const subscription = this.getUserSubscription(userId);
+    const usage = this.getUsage(userId);
+    
+    if (!subscription) {
+      // Default free plan limits
+      return {
+        allowed: true,
+        limits: {
+          transactions: { used: usage.transaction_count, limit: 50 },
+          parties: { used: usage.party_count, limit: 10 },
+          products: { used: usage.product_count, limit: 20 }
+        }
+      };
+    }
+    
+    const plan = this.getPlanById(subscription.plan_id);
+    const limits = {
+      transactions: { used: usage.transaction_count, limit: plan.max_transactions },
+      parties: { used: usage.party_count, limit: plan.max_parties },
+      products: { used: usage.product_count, limit: plan.max_products }
+    };
+    
+    const allowed = 
+      usage.transaction_count < plan.max_transactions &&
+      usage.party_count < plan.max_parties &&
+      usage.product_count < plan.max_products;
+    
+    return { allowed, limits, plan: subscription.plan_id };
+  }
+
+  // Payment records
+  recordPayment(paymentData) {
+    return this.insert('payment_records', paymentData);
+  }
+
+  getPaymentHistory(userId) {
+    return this.db.prepare('SELECT * FROM payment_records WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+  }
+
+  updatePaymentStatus(paymentId, status, invoiceUrl = null) {
+    const updates = { payment_status: status };
+    if (invoiceUrl) updates.invoice_url = invoiceUrl;
+    
+    this.db.prepare('UPDATE payment_records SET invoice_url = ? WHERE id = ?').run(invoiceUrl, paymentId);
+    
+    return this.update('payment_records', updates, 'id = ?', [paymentId]);
+  }
+
 
   // CRUD Operations - Generic
   insert(table, data) {
@@ -1708,4 +2047,4 @@ class DatabaseManager {
 // Export singleton instance
 const dbManager = new DatabaseManager();
 
-export default dbManager;
+module.exports = dbManager;

@@ -867,6 +867,96 @@ const useAppStore = create((set, get) => ({
   
   getLowStockProducts: () => {
     return get().products.filter(p => p.current_stock <= p.min_stock);
+  },
+
+  // ==================== SUBSCRIPTION STATE ====================
+  subscription: {
+    plans: [],
+    currentSubscription: null,
+    usage: null,
+    usageLimits: null,
+    isLoading: false,
+    showPricingModal: false
+  },
+
+  loadPlans: async () => {
+    get().setLoading('subscription', true);
+    try {
+      const plans = await window.api.subscription.getPlans();
+      set((state) => ({
+        subscription: { ...state.subscription, plans }
+      }));
+      return plans;
+    } catch (error) {
+      set({ error: error.message });
+      throw error;
+    } finally {
+      get().setLoading('subscription', false);
+    }
+  },
+
+  loadSubscription: async (userId) => {
+    get().setLoading('subscription', true);
+    try {
+      const subscription = await window.api.subscription.getSubscription(userId);
+      const usage = await window.api.subscription.getUsage(userId);
+      const limits = await window.api.subscription.checkLimits(userId);
+      set((state) => ({
+        subscription: {
+          ...state.subscription,
+          currentSubscription: subscription,
+          usage,
+          usageLimits: limits
+        }
+      }));
+      return { subscription, usage, limits };
+    } catch (error) {
+      set({ error: error.message });
+      throw error;
+    } finally {
+      get().setLoading('subscription', false);
+    }
+  },
+
+  createSubscription: async (userId, planId, billingCycle) => {
+    try {
+      const subscription = await window.api.subscription.create(userId, planId, billingCycle);
+      await get().loadSubscription(userId);
+      return subscription;
+    } catch (error) {
+      set({ error: error.message });
+      throw error;
+    }
+  },
+
+  checkUsageLimits: async (userId) => {
+    try {
+      const limits = await window.api.subscription.checkLimits(userId);
+      set((state) => ({
+        subscription: { ...state.subscription, usageLimits: limits }
+      }));
+      return limits;
+    } catch (error) {
+      set({ error: error.message });
+      throw error;
+    }
+  },
+
+  incrementUsage: async (userId, type) => {
+    try {
+      await window.api.subscription.incrementUsage(userId, type);
+      await get().loadSubscription(userId);
+    } catch (error) {
+      console.error('Failed to increment usage:', error);
+    }
+  },
+
+  showPricingModal: (show) => set((state) => ({
+    subscription: { ...state.subscription, showPricingModal: show }
+  })),
+
+  getPlanById: (planId) => {
+    return get().subscription.plans.find(p => p.plan_id === planId);
   }
 }));
 

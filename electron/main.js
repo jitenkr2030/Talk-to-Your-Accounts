@@ -1,8 +1,8 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, Notification } = require('electron');
 const path = require('path');
 const Database = require('better-sqlite3');
-
 const crypto = require('crypto');
+const dbManager = require('./database');
 
 // ==================== AUTHENTICATION HELPERS ====================
 function hashPin(pin, salt = null) {
@@ -2825,6 +2825,47 @@ ipcMain.handle('search-audit-logs', (event, query, filters = {}) => {
   params.push(filters.limit || 100);
 
   return db.prepare(sql).all(...params);
+});
+
+// ==================== SUBSCRIPTION MANAGEMENT ====================
+ipcMain.handle('subscription/get-plans', () => {
+  return dbManager.getAllPlans();
+});
+
+ipcMain.handle('subscription/get-plan', (event, planId) => {
+  return dbManager.getPlanById(planId);
+});
+
+ipcMain.handle('subscription/get-subscription', (event, userId) => {
+  return dbManager.getUserSubscription(userId);
+});
+
+ipcMain.handle('subscription/create', (event, userId, planId, billingCycle) => {
+  return dbManager.createSubscription(userId, planId, billingCycle);
+});
+
+ipcMain.handle('subscription/update-status', (event, userId, status, razorpaySubscriptionId) => {
+  return dbManager.updateSubscriptionStatus(userId, status, razorpaySubscriptionId);
+});
+
+ipcMain.handle('subscription/get-usage', (event, userId) => {
+  return dbManager.getUsage(userId);
+});
+
+ipcMain.handle('subscription/check-limits', (event, userId) => {
+  return dbManager.checkUsageLimits(userId);
+});
+
+ipcMain.handle('subscription/increment-usage', (event, userId, type) => {
+  return dbManager.incrementUsage(userId, type);
+});
+
+ipcMain.handle('subscription/get-payment-history', (event, userId) => {
+  return dbManager.getPaymentHistory(userId);
+});
+
+ipcMain.handle('subscription/record-payment', (event, paymentData) => {
+  return dbManager.recordPayment(paymentData);
 });
 
 // ==================== INITIALIZATION ====================
