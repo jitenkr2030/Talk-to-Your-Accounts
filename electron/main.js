@@ -2,6 +2,27 @@ const { app, BrowserWindow, ipcMain, dialog, shell, Notification } = require('el
 const path = require('path');
 const Database = require('better-sqlite3');
 
+const crypto = require('crypto');
+
+// ==================== AUTHENTICATION HELPERS ====================
+function hashPin(pin, salt = null) {
+  const useSalt = salt || crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(pin, useSalt, 1000, 64, 'sha512').toString('hex');
+  return { hash, salt: useSalt };
+}
+
+function verifyPin(pin, hash, salt) {
+  const { hash: verifyHash } = hashPin(pin, salt);
+  return hash === verifyHash;
+}
+
+function generateSessionToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+// Session store (in-memory for demo, use secure storage in production)
+const activeSessions = new Map();
+
 let mainWindow;
 let db;
 
@@ -288,15 +309,117 @@ function initializeDatabase() {
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- Users for Authentication
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      pin_hash TEXT NOT NULL,
+      pin_salt TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'editor',
+      is_active INTEGER DEFAULT 1,
+      failed_attempts INTEGER DEFAULT 0,
+      locked_until TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      last_login TEXT
+    );
+
+    -- GST Reminders for Compliance
+    CREATE TABLE IF NOT EXISTS gst_reminders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      reminder_type TEXT NOT NULL,
+      period TEXT NOT NULL,
+      due_date TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Sessions
+    CREATE TABLE IF NOT EXISTS sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      token TEXT UNIQUE NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      expires_at TEXT NOT NULL,
+      is_active INTEGER DEFAULT 1,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    -- Bank Statements (for Auto-Reconciliation)
+    CREATE TABLE IF NOT EXISTS bank_statements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      bank_name TEXT NOT NULL,
+      account_number TEXT,
+      statement_period TEXT,
+      file_path TEXT,
+      uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      processed_at TEXT,
+      status TEXT DEFAULT 'pending',
+      total_transactions INTEGER DEFAULT 0,
+      matched_count INTEGER DEFAULT 0,
+      unmatched_count INTEGER DEFAULT 0,
+      created_by TEXT
+    );
+
+    -- Bank Statement Transactions
+    CREATE TABLE IF NOT EXISTS bank_transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      bank_statement_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      description TEXT,
+      amount REAL NOT NULL,
+      type TEXT NOT NULL,
+      reference_no TEXT,
+      matched INTEGER DEFAULT 0,
+      transaction_id INTEGER,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (bank_statement_id) REFERENCES bank_statements(id)
+    );
+
+    -- Recommendations
+    CREATE TABLE IF NOT EXISTS recommendations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      category TEXT NOT NULL,
+      priority INTEGER DEFAULT 5,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      actionable TEXT,
+      potential_impact TEXT,
+      implementation TEXT,
+      is_read INTEGER DEFAULT 0,
+      is_applied INTEGER DEFAULT 0,
+      applied_at TEXT,
+      expires_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Voice Command Logs
+    CREATE TABLE IF NOT EXISTS voice_command_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      command TEXT NOT NULL,
+      transcript TEXT,
+      confidence REAL,
+      action TEXT,
+      success INTEGER DEFAULT 0,
+      error_message TEXT,
+      duration_ms INTEGER,
+      language TEXT DEFAULT 'en-IN',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Indices
-    CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
-    CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(voucher_type);
-    CREATE INDEX IF NOT EXISTS idx_transactions_party ON transactions(party_id);
-    CREATE INDEX IF NOT EXISTS idx_transactions_voucher ON transactions(voucher_no);
-    CREATE INDEX IF NOT EXISTS idx_parties_name ON parties(name);
-    CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
     CREATE INDEX IF NOT EXISTS idx_alerts_type ON alerts(type);
     CREATE INDEX IF NOT EXISTS idx_alerts_unread ON alerts(is_read, is_dismissed);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
+    CREATE INDEX IF NOT EXISTS idx_bank_transactions_bank ON bank_transactions(bank_statement_id);
+    CREATE INDEX IF NOT EXISTS idx_bank_transactions_date ON bank_transactions(date);
+    CREATE INDEX IF NOT EXISTS idx_recommendations_type ON recommendations(type);
+    CREATE INDEX IF NOT EXISTS idx_voice_logs_created ON voice_command_logs(created_at);
+    CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+    CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
   `);
 
   // Initialize default tax settings
@@ -1646,6 +1769,168 @@ ipcMain.handle('export-data', (event, format) => {
   };
 });
 
+// ==================== ENCRYPTED EXPORT ====================
+ipcMain.handle('export-encrypted', async (event, options) => {
+  const { data, format, password, filename } = options;
+
+  if (!password || password.length < 8) {
+    throw new Error('Password must be at least 8 characters');
+  }
+
+  try {
+    const crypto = require('crypto');
+    const fs = require('fs');
+    const archiver = require('archiver');
+
+    // Generate encryption key from password
+    const key = crypto.pbkdf2Sync(password, 'talk-to-accounts-salt', 100000, 32, 'sha512');
+    const iv = crypto.randomBytes(16);
+
+    // Create temporary file for unencrypted data
+    const tempPath = path.join(app.getPath('temp'), `export_${Date.now()}.txt`);
+    fs.writeFileSync(tempPath, data);
+
+    // Create encrypted file path
+    const ext = format === 'json' ? 'txt.enc' : format === 'csv' ? 'csv.enc' : 'pdf.enc';
+    const encryptedPath = path.join(app.getPath('temp'), `encrypted_${Date.now()}.${ext}`);
+
+    // Read file and encrypt
+    const fileContent = fs.readFileSync(tempPath);
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    const encryptedContent = Buffer.concat([cipher.update(fileContent), cipher.final()]);
+
+    // Prepend IV to encrypted content (needed for decryption)
+    const finalContent = Buffer.concat([iv, encryptedContent]);
+    fs.writeFileSync(encryptedPath, finalContent);
+
+    // Create password-protected ZIP using archiver with zip-encrypt
+    const archivePath = path.join(app.getPath('downloads'), filename || `secure_export_${Date.now()}.zip`);
+
+    // Use showSaveDialog to let user choose location
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      title: 'Save Encrypted Export',
+      defaultPath: archivePath,
+      filters: [
+        { name: 'ZIP Files', extensions: ['zip'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+
+    if (canceled || !filePath) {
+      // Clean up temp files
+      fs.unlinkSync(tempPath);
+      fs.unlinkSync(encryptedPath);
+      return { success: false, canceled: true };
+    }
+
+    // Create archive with password
+    const output = fs.createWriteStream(filePath);
+    const archive = archiver('zip', {
+      zlib: { level: 9 },
+      encryptionMethod: 'aes256',
+      password: password
+    });
+
+    archive.pipe(output);
+
+    // Add encrypted data file to archive
+    const dataFilename = `data_${Date.now()}.${format}`;
+    archive.append(fs.createReadStream(encryptedPath), { name: dataFilename });
+
+    // Add readme with instructions
+    const readmeContent = `SECURE EXPORT FILE
+===================
+Generated: ${new Date().toISOString()}
+Format: ${format.toUpperCase()}
+Encryption: AES-256-CBC
+
+INSTRUCTIONS:
+1. This file is password protected
+2. Use your export password to extract
+3. Extract the .enc file and decrypt using the provided decryption tool
+
+WARNING: Do not share this file or password with unauthorized users.
+
+Generated by Talk to Your Accounts
+`;
+
+    archive.append(readmeContent, { name: 'README.txt' });
+
+    await archive.finalize();
+
+    // Clean up temp files
+    fs.unlinkSync(tempPath);
+    fs.unlinkSync(encryptedPath);
+
+    logAudit(db, 'EXPORT', 'encrypted', null, null, { format, filename }, 'Encrypted data export completed');
+
+    return {
+      success: true,
+      path: filePath,
+      size: fs.statSync(filePath).size
+    };
+  } catch (error) {
+    console.error('Encrypted export error:', error);
+    throw new Error('Export failed: ' + error.message);
+  }
+});
+
+ipcMain.handle('decrypt-data', async (event, options) => {
+  const { filePath, password } = options;
+
+  if (!password || password.length < 8) {
+    throw new Error('Password must be at least 8 characters');
+  }
+
+  try {
+    const crypto = require('crypto');
+    const fs = require('fs');
+    const path = require('path');
+    const extract = require('extract-zip');
+
+    // Create temp directory
+    const tempDir = path.join(app.getPath('temp'), `decrypt_${Date.now()}`);
+    fs.mkdirSync(tempDir, { recursive: true });
+
+    // Extract ZIP with password
+    await extract(filePath, { dir: tempDir, password: password });
+
+    // Find the encrypted file
+    const files = fs.readdirSync(tempDir);
+    const encFile = files.find(f => f.endsWith('.enc'));
+
+    if (!encFile) {
+      throw new Error('Encrypted file not found in archive');
+    }
+
+    // Read and decrypt
+    const encryptedContent = fs.readFileSync(path.join(tempDir, encFile));
+    const iv = encryptedContent.slice(0, 16);
+    const encryptedData = encryptedContent.slice(16);
+
+    // Derive key from password
+    const key = crypto.pbkdf2Sync(password, 'talk-to-accounts-salt', 100000, 32, 'sha512');
+
+    // Decrypt
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    const decryptedContent = Buffer.concat([decipher.update(encryptedData), decipher.final()]);
+
+    // Return the decrypted data
+    const result = decryptedContent.toString('utf8');
+
+    // Clean up
+    fs.rmSync(tempDir, { recursive: true, force: true });
+
+    return {
+      success: true,
+      data: result
+    };
+  } catch (error) {
+    console.error('Decrypt error:', error);
+    throw new Error('Decryption failed: ' + (error.message || 'Invalid password or corrupted file'));
+  }
+});
+
 ipcMain.handle('import-data', (event, data) => {
   let imported = { parties: 0, products: 0, transactions: 0, expenses: 0 };
   
@@ -1761,6 +2046,785 @@ ipcMain.handle('save-settings', (event, settings) => {
     }
   }
   return true;
+});
+
+// ==================== AUTHENTICATION ====================
+ipcMain.handle('get-users', () => {
+  try {
+    const users = db.prepare('SELECT id, username, role, is_active, failed_attempts, locked_until, created_at, last_login FROM users').all();
+    return { users };
+  } catch (error) {
+    // If users table doesn't exist, return empty
+    return { users: [] };
+  }
+});
+
+ipcMain.handle('create-user', (event, userData) => {
+  const { username, pin, role } = userData;
+  
+  if (!username || username.length < 3) {
+    throw new Error('Username must be at least 3 characters');
+  }
+  
+  if (!/^\\d{4}$/.test(pin)) {
+    throw new Error('PIN must be exactly 4 digits');
+  }
+  
+  // Check if user already exists
+  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+  if (existing) {
+    throw new Error('Username already exists');
+  }
+  
+  // Hash the PIN
+  const { hash, salt } = hashPin(pin);
+  
+  // Insert user
+  const stmt = db.prepare(`
+    INSERT INTO users (username, pin_hash, pin_salt, role)
+    VALUES (?, ?, ?, ?)
+  `);
+  
+  const result = stmt.run(username, hash, salt, role || 'editor');
+  
+  logAudit(db, 'CREATE', 'users', result.lastInsertRowid, null, { username, role }, `Created user: ${username}`);
+  
+  return { 
+    success: true, 
+    user: { id: result.lastInsertRowid, username, role } 
+  };
+});
+
+ipcMain.handle('authenticate', (event, username, pin) => {
+  if (!username || !pin) {
+    return { success: false, error: 'INVALID_CREDENTIALS', message: 'Username and PIN are required' };
+  }
+  
+  try {
+    const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    
+    if (!user) {
+      return { success: false, error: 'USER_NOT_FOUND', message: 'User not found' };
+    }
+    
+    if (!user.is_active) {
+      return { success: false, error: 'ACCOUNT_DISABLED', message: 'Account is disabled' };
+    }
+    
+    // Check if account is locked
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      const remaining = Math.ceil((new Date(user.locked_until) - new Date()) / 60000);
+      return { 
+        success: false, 
+        error: 'ACCOUNT_LOCKED', 
+        message: `Account locked. Try again in ${remaining} minutes` 
+      };
+    }
+    
+    // Verify PIN
+    if (!verifyPin(pin, user.pin_hash, user.pin_salt)) {
+      // Increment failed attempts
+      const failedAttempts = (user.failed_attempts || 0) + 1;
+      let lockedUntil = null;
+      
+      // Lock account after 5 failed attempts for 30 minutes
+      if (failedAttempts >= 5) {
+        lockedUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+        db.prepare('UPDATE users SET failed_attempts = ?, locked_until = ? WHERE id = ?')
+          .run(failedAttempts, lockedUntil, user.id);
+        
+        logAudit(db, 'SECURITY', 'users', user.id, { failed_attempts: failedAttempts - 1 }, 
+          { failed_attempts, locked_until: lockedUntil }, `Account locked due to failed login attempts`);
+        
+        return { 
+          success: false, 
+          error: 'ACCOUNT_LOCKED', 
+          message: 'Account locked due to too many failed attempts. Try again in 30 minutes.' 
+        };
+      }
+      
+      db.prepare('UPDATE users SET failed_attempts = ? WHERE id = ?').run(failedAttempts, user.id);
+      
+      logAudit(db, 'LOGIN_FAILED', 'users', user.id, null, { failed_attempts }, `Failed login attempt for ${username}`);
+      
+      return { 
+        success: false, 
+        error: 'INVALID_PIN', 
+        message: `Invalid PIN. ${5 - failedAttempts} attempts remaining.` 
+      };
+    }
+    
+    // Successful login - reset failed attempts and update last login
+    const sessionToken = generateSessionToken();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+    
+    db.prepare('UPDATE users SET failed_attempts = 0, locked_until = NULL, last_login = CURRENT_TIMESTAMP WHERE id = ?')
+      .run(user.id);
+    
+    // Create session
+    db.prepare(`
+      INSERT INTO sessions (user_id, token, expires_at)
+      VALUES (?, ?, ?)
+    `).run(user.id, sessionToken, expiresAt);
+    
+    // Clean up expired sessions
+    db.prepare('DELETE FROM sessions WHERE expires_at < CURRENT_TIMESTAMP OR is_active = 0').run();
+    
+    logAudit(db, 'LOGIN', 'users', user.id, null, { session_created: true }, `User ${username} logged in`);
+    
+    return {
+      success: true,
+      session: {
+        token: sessionToken,
+        userId: user.id,
+        username: user.username,
+        role: user.role,
+        expiresAt
+      }
+    };
+  } catch (error) {
+    console.error('Auth error:', error);
+    return { success: false, error: 'AUTH_ERROR', message: 'Authentication failed' };
+  }
+});
+
+ipcMain.handle('logout', (event, sessionToken) => {
+  try {
+    if (sessionToken) {
+      db.prepare('UPDATE sessions SET is_active = 0 WHERE token = ?').run(sessionToken);
+    }
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: 'LOGOUT_FAILED' };
+  }
+});
+
+ipcMain.handle('update-user-pin', (event, userId, oldPin, newPin) => {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+  
+  if (!user) {
+    throw new Error('User not found');
+  }
+  
+  if (!verifyPin(oldPin, user.pin_hash, user.pin_salt)) {
+    return { success: false, error: 'INVALID_OLD_PIN' };
+  }
+  
+  const { hash, salt } = hashPin(newPin);
+  
+  db.prepare('UPDATE users SET pin_hash = ?, pin_salt = ? WHERE id = ?').run(hash, salt, userId);
+  
+  logAudit(db, 'UPDATE', 'users', userId, null, { pin_changed: true }, `PIN changed for user ${user.username}`);
+  
+  return { success: true };
+});
+
+ipcMain.handle('delete-user', (event, userId) => {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+  
+  if (!user) {
+    throw new Error('User not found');
+  }
+  
+  // Soft delete - deactivate user
+  db.prepare('UPDATE users SET is_active = 0 WHERE id = ?').run(userId);
+  
+  // Invalidate all sessions for this user
+  db.prepare('UPDATE sessions SET is_active = 0 WHERE user_id = ?').run(userId);
+  
+  logAudit(db, 'DELETE', 'users', userId, { is_active: 1 }, { is_active: 0 }, `Deactivated user ${user.username}`);
+  
+  return { success: true };
+});
+
+// ==================== GST REMINDERS ====================
+ipcMain.handle('get-gst-reminders', () => {
+  return db.prepare('SELECT * FROM gst_reminders ORDER BY due_date ASC').all();
+});
+
+ipcMain.handle('create-gst-reminder', (event, reminder) => {
+  const stmt = db.prepare(`
+    INSERT INTO gst_reminders (reminder_type, period, due_date, status, notes)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  
+  const result = stmt.run(
+    reminder.reminder_type,
+    reminder.period,
+    reminder.due_date,
+    reminder.status || 'pending',
+    reminder.notes || null
+  );
+  
+  logAudit(db, 'CREATE', 'gst_reminders', result.lastInsertRowid, null, reminder, `Created GST reminder: ${reminder.reminder_type}`);
+  
+  return result.lastInsertRowid;
+});
+
+ipcMain.handle('update-gst-reminder', (event, id, updates) => {
+  db.prepare(`
+    UPDATE gst_reminders SET status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+  `).run(updates.status, updates.notes || null, id);
+  
+  return true;
+});
+
+ipcMain.handle('delete-gst-reminder', (event, id) => {
+  db.prepare('DELETE FROM gst_reminders WHERE id = ?').run(id);
+  return true;
+});
+
+// ==================== BANK RECONCILIATION ====================
+ipcMain.handle('get-bank-statements', (event, filters = {}) => {
+  let query = 'SELECT * FROM bank_statements ORDER BY uploaded_at DESC';
+  const params = [];
+
+  if (filters.status) {
+    query = 'SELECT * FROM bank_statements WHERE status = ? ORDER BY uploaded_at DESC';
+    params.push(filters.status);
+  }
+
+  return db.prepare(query).all(...params);
+});
+
+ipcMain.handle('get-bank-statement-by-id', (event, id) => {
+  const statement = db.prepare('SELECT * FROM bank_statements WHERE id = ?').get(id);
+  if (statement) {
+    statement.transactions = db.prepare('SELECT * FROM bank_transactions WHERE bank_statement_id = ? ORDER BY date').all(id);
+  }
+  return statement;
+});
+
+ipcMain.handle('create-bank-statement', (event, data) => {
+  const stmt = db.prepare(`
+    INSERT INTO bank_statements (bank_name, account_number, statement_period, file_path, created_by)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+
+  const result = stmt.run(
+    data.bank_name,
+    data.account_number || null,
+    data.statement_period || null,
+    data.file_path || null,
+    data.created_by || 'system'
+  );
+
+  logAudit(db, 'CREATE', 'bank_statements', result.lastInsertRowid, null, data, `Created bank statement record for ${data.bank_name}`);
+
+  return result.lastInsertRowid;
+});
+
+ipcMain.handle('add-bank-transaction', (event, data) => {
+  const stmt = db.prepare(`
+    INSERT INTO bank_transactions (bank_statement_id, date, description, amount, type, reference_no)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+
+  const result = stmt.run(
+    data.bank_statement_id,
+    data.date,
+    data.description || null,
+    data.amount,
+    data.type,
+    data.reference_no || null
+  );
+
+  return result.lastInsertRowid;
+});
+
+ipcMain.handle('process-bank-statement', (event, id) => {
+  // Get all unmatched bank transactions
+  const bankTxns = db.prepare(`
+    SELECT * FROM bank_transactions
+    WHERE bank_statement_id = ? AND matched = 0
+    ORDER BY date
+  `).all(id);
+
+  let matched = 0;
+  let unmatched = 0;
+
+  for (const txn of bankTxns) {
+    // Try to find matching transaction based on amount and date proximity
+    const tolerance = 2; // 2 days tolerance
+    const startDate = new Date(txn.date);
+    startDate.setDate(startDate.getDate() - tolerance);
+    const endDate = new Date(txn.date);
+    endDate.setDate(endDate.getDate() + tolerance);
+
+    const matches = db.prepare(`
+      SELECT * FROM transactions
+      WHERE ABS(total_amount - ?) < 1
+      AND date BETWEEN ? AND ?
+      AND is_cancelled = 0
+      AND matched = 0
+      ORDER BY ABS(total_amount - ?)
+      LIMIT 1
+    `).all(txn.amount, startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0], txn.amount);
+
+    if (matches.length > 0) {
+      const match = matches[0];
+      db.prepare('UPDATE bank_transactions SET matched = 1, transaction_id = ? WHERE id = ?').run(match.id, txn.id);
+      db.prepare('UPDATE transactions SET is_matched = 1 WHERE id = ?').run(match.id);
+      matched++;
+    } else {
+      unmatched++;
+    }
+  }
+
+  // Update statement status
+  db.prepare(`
+    UPDATE bank_statements
+    SET status = 'processed', processed_at = CURRENT_TIMESTAMP, total_transactions = ?, matched_count = ?, unmatched_count = ?
+    WHERE id = ?
+  `).run(bankTxns.length, matched, unmatched, id);
+
+  logAudit(db, 'PROCESS', 'bank_statements', id, null, { matched, unmatched }, `Processed bank statement with ${matched} matches`);
+
+  return { matched, unmatched };
+});
+
+ipcMain.handle('get-unreconciled-transactions', () => {
+  return db.prepare(`
+    SELECT t.*, p.name as party_name
+    FROM transactions t
+    LEFT JOIN parties p ON t.party_id = p.id
+    WHERE t.is_cancelled = 0 AND (t.is_matched IS NULL OR t.is_matched = 0)
+    AND t.payment_status != 'paid'
+    ORDER BY t.date DESC
+  `).all();
+});
+
+ipcMain.handle('reconcile-transaction', (event, transactionId, bankTxnId) => {
+  db.prepare('UPDATE transactions SET is_matched = 1 WHERE id = ?').run(transactionId);
+  db.prepare('UPDATE bank_transactions SET matched = 1, transaction_id = ? WHERE id = ?').run(transactionId, bankTxnId);
+
+  logAudit(db, 'RECONCILE', 'transactions', transactionId, null, { bank_txn_id: bankTxnId }, 'Manual reconciliation completed');
+
+  return true;
+});
+
+// ==================== RECOMMENDATIONS ====================
+ipcMain.handle('get-recommendations', (event, filters = {}) => {
+  let query = 'SELECT * FROM recommendations WHERE (expires_at IS NULL OR expires_at > datetime("now"))';
+  const params = [];
+
+  if (filters.unreadOnly) {
+    query += ' AND is_read = 0';
+  }
+  if (filters.unappliedOnly) {
+    query += ' AND is_applied = 0';
+  }
+  if (filters.type) {
+    query += ' AND type = ?';
+    params.push(filters.type);
+  }
+  if (filters.category) {
+    query += ' AND category = ?';
+    params.push(filters.category);
+  }
+
+  query += ' ORDER BY priority DESC, created_at DESC LIMIT ?';
+  params.push(filters.limit || 50);
+
+  return db.prepare(query).all(...params);
+});
+
+ipcMain.handle('create-recommendation', (event, data) => {
+  const stmt = db.prepare(`
+    INSERT INTO recommendations (type, category, priority, title, description, actionable, potential_impact, implementation, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const result = stmt.run(
+    data.type,
+    data.category,
+    data.priority || 5,
+    data.title,
+    data.description,
+    data.actionable || null,
+    data.potential_impact || null,
+    data.implementation || null,
+    data.expires_at || null
+  );
+
+  return result.lastInsertRowid;
+});
+
+ipcMain.handle('mark-recommendation-read', (event, id) => {
+  db.prepare('UPDATE recommendations SET is_read = 1 WHERE id = ?').run(id);
+  return true;
+});
+
+ipcMain.handle('apply-recommendation', (event, id) => {
+  db.prepare('UPDATE recommendations SET is_applied = 1, applied_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
+
+  const recommendation = db.prepare('SELECT * FROM recommendations WHERE id = ?').get(id);
+  logAudit(db, 'APPLY', 'recommendations', id, null, recommendation, `Applied recommendation: ${recommendation.title}`);
+
+  return true;
+});
+
+ipcMain.handle('generate-recommendations', () => {
+  const recommendations = [];
+
+  // Check for high outstanding receivables
+  const overdue = db.prepare(`
+    SELECT p.name, COUNT(*) as count, SUM(t.total_amount) as total
+    FROM transactions t
+    JOIN parties p ON t.party_id = p.id
+    WHERE t.voucher_type = 'sale' AND t.is_cancelled = 0 AND t.payment_status != 'paid'
+    AND t.due_date < datetime('now', '-30 days')
+    GROUP BY p.id
+    HAVING total > 10000
+  `).all();
+
+  for (const item of overdue) {
+    recommendations.push({
+      type: 'cash_flow',
+      category: 'collections',
+      priority: 9,
+      title: 'Follow up on overdue payments',
+      description: `${item.name} has ₹${item.total.toLocaleString()} overdue for more than 30 days (${item.count} invoices).`,
+      actionable: `Contact ${item.name} to follow up on pending payments.`,
+      potential_impact: 'Improved cash flow of ₹' + item.total.toLocaleString()
+    });
+  }
+
+  // Check for GST compliance
+  const pendingGST = db.prepare(`
+    SELECT COUNT(*) as count FROM transactions
+    WHERE voucher_type = 'sale' AND is_cancelled = 0
+    AND date LIKE ?
+    AND gst_rate > 0
+  `).get(`${new Date().toISOString().slice(0, 7)}%`);
+
+  if (pendingGST.count > 0) {
+    recommendations.push({
+      type: 'compliance',
+      category: 'gst',
+      priority: 8,
+      title: 'GST filing reminder',
+      description: `You have ${pendingGST.count} taxable transactions this month that need to be included in GST returns.`,
+      actionable: 'Prepare and file GSTR-1 and GSTR-3B for the current tax period.',
+      potential_impact: 'Avoid penalties and maintain compliance'
+    });
+  }
+
+  // Check for low stock items
+  const lowStock = db.prepare(`
+    SELECT name, current_stock, min_stock, rate
+    FROM products
+    WHERE current_stock <= min_stock AND is_active = 1
+    LIMIT 5
+  `).all();
+
+  for (const item of lowStock) {
+    recommendations.push({
+      type: 'inventory',
+      category: 'stock',
+      priority: 7,
+      title: 'Reorder ' + item.name,
+      description: `${item.name} is at minimum stock level (${item.current_stock} units).`,
+      actionable: `Place purchase order for ${item.name} to maintain stock levels.`,
+      potential_impact: 'Prevent stockouts and maintain sales'
+    });
+  }
+
+  // Insert all recommendations
+  for (const rec of recommendations) {
+    db.prepare(`
+      INSERT INTO recommendations (type, category, priority, title, description, actionable, potential_impact)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(rec.type, rec.category, rec.priority, rec.title, rec.description, rec.actionable, rec.potential_impact);
+  }
+
+  return recommendations.length;
+});
+
+// ==================== VOICE COMMANDS ====================
+ipcMain.handle('log-voice-command', (event, data) => {
+  const stmt = db.prepare(`
+    INSERT INTO voice_command_logs (command, transcript, confidence, action, success, error_message, duration_ms, language)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const result = stmt.run(
+    data.command || null,
+    data.transcript || null,
+    data.confidence || null,
+    data.action || null,
+    data.success ? 1 : 0,
+    data.error_message || null,
+    data.duration_ms || null,
+    data.language || 'en-IN'
+  );
+
+  return result.lastInsertRowid;
+});
+
+ipcMain.handle('get-voice-command-logs', (event, filters = {}) => {
+  let query = 'SELECT * FROM voice_command_logs ORDER BY created_at DESC';
+  const params = [];
+
+  if (filters.startDate) {
+    query = 'SELECT * FROM voice_command_logs WHERE created_at >= ? ORDER BY created_at DESC';
+    params.push(filters.startDate);
+  }
+  if (filters.endDate) {
+    query += ' AND created_at <= ?';
+    params.push(filters.endDate);
+  }
+  if (filters.success !== undefined) {
+    query += ' AND success = ?';
+    params.push(filters.success ? 1 : 0);
+  }
+
+  query += ' LIMIT ?';
+  params.push(filters.limit || 100);
+
+  return db.prepare(query).all(...params);
+});
+
+ipcMain.handle('get-voice-stats', () => {
+  const total = db.prepare('SELECT COUNT(*) as count FROM voice_command_logs').get();
+  const success = db.prepare('SELECT COUNT(*) as count FROM voice_command_logs WHERE success = 1').get();
+  const byLanguage = db.prepare('SELECT language, COUNT(*) as count, AVG(confidence) as avg_confidence FROM voice_command_logs GROUP BY language').all();
+  const recent = db.prepare('SELECT * FROM voice_command_logs ORDER BY created_at DESC LIMIT 10').all();
+
+  return {
+    total_commands: total.count,
+    successful_commands: success.count,
+    success_rate: total.count > 0 ? (success.count / total.count * 100).toFixed(1) : 0,
+    by_language: byLanguage,
+    recent_commands: recent
+  };
+});
+
+// ==================== ERROR DETECTION ====================
+ipcMain.handle('detect-errors', (event, types = []) => {
+  const errors = [];
+
+  // Check for duplicate voucher numbers
+  if (!types.length || types.includes('duplicate_voucher')) {
+    const duplicates = db.prepare(`
+      SELECT voucher_no, COUNT(*) as count, GROUP_CONCAT(id) as ids
+      FROM transactions
+      GROUP BY voucher_no
+      HAVING count > 1
+    `).all();
+
+    for (const dup of duplicates) {
+      errors.push({
+        type: 'duplicate_voucher',
+        severity: 'high',
+        title: 'Duplicate Voucher Numbers',
+        description: `Voucher ${dup.voucher_no} appears ${dup.count} times in the system.`,
+        entity_type: 'transactions',
+        entity_ids: dup.ids.split(',').map(Number),
+        suggestion: 'Merge or delete duplicate transactions.'
+      });
+    }
+  }
+
+  // Check for transactions with negative amounts
+  if (!types.length || types.includes('negative_amount')) {
+    const negatives = db.prepare(`
+      SELECT id, voucher_no, total_amount, date
+      FROM transactions
+      WHERE total_amount < 0 AND is_cancelled = 0
+    `).all();
+
+    for (const txn of negatives) {
+      errors.push({
+        type: 'negative_amount',
+        severity: 'medium',
+        title: 'Negative Transaction Amount',
+        description: `Transaction ${txn.voucher_no} has negative amount: ₹${txn.total_amount}`,
+        entity_type: 'transactions',
+        entity_ids: [txn.id],
+        suggestion: 'Review and correct the transaction amount.'
+      });
+    }
+  }
+
+  // Check for missing party in transactions
+  if (!types.length || types.includes('missing_party')) {
+    const missingParty = db.prepare(`
+      SELECT id, voucher_no, total_amount, date
+      FROM transactions
+      WHERE party_id IS NULL AND voucher_type IN ('sale', 'purchase')
+    `).all();
+
+    for (const txn of missingParty) {
+      errors.push({
+        type: 'missing_party',
+        severity: 'medium',
+        title: 'Transaction Without Party',
+        description: `Transaction ${txn.voucher_no} (₹${txn.total_amount}) has no party assigned.`,
+        entity_type: 'transactions',
+        entity_ids: [txn.id],
+        suggestion: 'Assign the appropriate party to this transaction.'
+      });
+    }
+  }
+
+  // Check for GST rate mismatch
+  if (!types.length || types.includes('gst_mismatch')) {
+    const gstMismatches = db.prepare(`
+      SELECT id, voucher_no, gst_rate, amount, total_gst
+      FROM transactions
+      WHERE is_cancelled = 0
+      AND gst_rate > 0
+      AND ABS(total_gst - (amount * gst_rate / 100)) > 1
+    `).all();
+
+    for (const txn of gstMismatches) {
+      errors.push({
+        type: 'gst_mismatch',
+        severity: 'high',
+        title: 'GST Calculation Mismatch',
+        description: `Transaction ${txn.voucher_no} has inconsistent GST calculation.`,
+        entity_type: 'transactions',
+        entity_ids: [txn.id],
+        suggestion: 'Recalculate and correct the GST amounts.'
+      });
+    }
+  }
+
+  // Check for round-off issues
+  if (!types.length || types.includes('round_off')) {
+    const roundOffs = db.prepare(`
+      SELECT id, voucher_no, amount, total_amount
+      FROM transactions
+      WHERE is_cancelled = 0
+      AND ABS(total_amount - round(amount + total_gst)) > 0.5
+    `).all();
+
+    for (const txn of roundOffs) {
+      errors.push({
+        type: 'round_off',
+        severity: 'low',
+        title: 'Round-off Discrepancy',
+        description: `Transaction ${txn.voucher_no} has round-off difference > ₹0.50`,
+        entity_type: 'transactions',
+        entity_ids: [txn.id],
+        suggestion: 'Check the total calculation and apply proper rounding.'
+      });
+    }
+  }
+
+  // Log error detection
+  logAudit(db, 'ERROR_CHECK', 'system', null, null, { types, error_count: errors.length }, 'Ran error detection checks');
+
+  return errors;
+});
+
+ipcMain.handle('fix-error', (event, errorType, entityId, fixData) => {
+  switch (errorType) {
+    case 'duplicate_voucher':
+      // Merge transactions - keep first, cancel others
+      const ids = entityId.split(',');
+      if (ids.length > 1) {
+        for (let i = 1; i < ids.length; i++) {
+          db.prepare('UPDATE transactions SET is_cancelled = 1, narration = ? WHERE id = ?')
+            .run('Cancelled due to duplicate voucher number', ids[i]);
+        }
+      }
+      break;
+
+    case 'negative_amount':
+      db.prepare('UPDATE transactions SET total_amount = ABS(total_amount) WHERE id = ?').run(entityId);
+      break;
+
+    case 'gst_mismatch':
+      if (fixData && fixData.total_gst !== undefined) {
+        db.prepare('UPDATE transactions SET total_gst = ? WHERE id = ?').run(fixData.total_gst, entityId);
+      }
+      break;
+  }
+
+  logAudit(db, 'ERROR_FIX', 'transactions', entityId, null, { error_type: errorType, fix_data: fixData }, `Fixed error: ${errorType}`);
+
+  return true;
+});
+
+// ==================== AUDIT TRAIL ENHANCED ====================
+ipcMain.handle('get-audit-summary', (event, period = 'week') => {
+  const today = new Date();
+  let startDate;
+
+  if (period === 'today') {
+    startDate = today.toISOString().split('T')[0];
+  } else if (period === 'week') {
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    startDate = weekAgo.toISOString().split('T')[0];
+  } else {
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    startDate = monthStart.toISOString().split('T')[0];
+  }
+
+  const byAction = db.prepare(`
+    SELECT action, COUNT(*) as count
+    FROM audit_logs
+    WHERE created_at >= ?
+    GROUP BY action
+  `).all(startDate);
+
+  const byEntity = db.prepare(`
+    SELECT entity_type, COUNT(*) as count
+    FROM audit_logs
+    WHERE created_at >= ?
+    GROUP BY entity_type
+  `).all(startDate);
+
+  const recentActivity = db.prepare(`
+    SELECT * FROM audit_logs
+    WHERE created_at >= ?
+    ORDER BY created_at DESC
+    LIMIT 20
+  `).all(startDate);
+
+  const total = db.prepare('SELECT COUNT(*) as count FROM audit_logs WHERE created_at >= ?').get(startDate);
+
+  return {
+    period: { start: startDate, end: today.toISOString().split('T')[0] },
+    total_actions: total.count,
+    by_action: byAction,
+    by_entity: byEntity,
+    recent_activity: recentActivity
+  };
+});
+
+ipcMain.handle('search-audit-logs', (event, query, filters = {}) => {
+  let sql = `
+    SELECT * FROM audit_logs
+    WHERE (action LIKE ? OR entity_type LIKE ? OR details LIKE ?)
+  `;
+  const searchTerm = `%${query}%`;
+  const params = [searchTerm, searchTerm, searchTerm];
+
+  if (filters.startDate) {
+    sql += ' AND created_at >= ?';
+    params.push(filters.startDate);
+  }
+  if (filters.endDate) {
+    sql += ' AND created_at <= ?';
+    params.push(filters.endDate);
+  }
+  if (filters.action) {
+    sql += ' AND action = ?';
+    params.push(filters.action);
+  }
+  if (filters.entityType) {
+    sql += ' AND entity_type = ?';
+    params.push(filters.entityType);
+  }
+
+  sql += ' ORDER BY created_at DESC LIMIT ?';
+  params.push(filters.limit || 100);
+
+  return db.prepare(sql).all(...params);
 });
 
 // ==================== INITIALIZATION ====================

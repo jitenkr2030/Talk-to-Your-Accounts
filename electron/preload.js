@@ -85,6 +85,8 @@ const caMode = {
 // Data Management APIs
 const dataManagement = {
   export: () => ipcRenderer.invoke('export-data'),
+  exportEncrypted: (options) => ipcRenderer.invoke('export-encrypted', options),
+  decryptData: (options) => ipcRenderer.invoke('decrypt-data', options),
   import: (data) => ipcRenderer.invoke('import-data', data),
   backup: () => ipcRenderer.invoke('backup-database'),
   restore: (backupPath) => ipcRenderer.invoke('restore-database', backupPath)
@@ -94,6 +96,64 @@ const dataManagement = {
 const settings = {
   get: () => ipcRenderer.invoke('get-settings'),
   save: (settings) => ipcRenderer.invoke('save-settings', settings)
+};
+
+// Authentication APIs
+const auth = {
+  getUsers: () => ipcRenderer.invoke('get-users'),
+  createUser: (userData) => ipcRenderer.invoke('create-user', userData),
+  authenticate: (username, pin) => ipcRenderer.invoke('authenticate', username, pin),
+  logout: (sessionToken) => ipcRenderer.invoke('logout', sessionToken),
+  updateUserPin: (userId, oldPin, newPin) => ipcRenderer.invoke('update-user-pin', userId, oldPin, newPin),
+  deleteUser: (userId) => ipcRenderer.invoke('delete-user', userId)
+};
+
+// GST Reminders APIs
+const gstReminders = {
+  get: () => ipcRenderer.invoke('get-gst-reminders'),
+  create: (reminder) => ipcRenderer.invoke('create-gst-reminder', reminder),
+  update: (id, updates) => ipcRenderer.invoke('update-gst-reminder', id, updates),
+  delete: (id) => ipcRenderer.invoke('delete-gst-reminder', id)
+};
+
+// Bank Reconciliation APIs
+const reconciliation = {
+  getStatements: (filters) => ipcRenderer.invoke('get-bank-statements', filters),
+  getStatementById: (id) => ipcRenderer.invoke('get-bank-statement-by-id', id),
+  createStatement: (data) => ipcRenderer.invoke('create-bank-statement', data),
+  addTransaction: (data) => ipcRenderer.invoke('add-bank-transaction', data),
+  processStatement: (id) => ipcRenderer.invoke('process-bank-statement', id),
+  getUnreconciled: () => ipcRenderer.invoke('get-unreconciled-transactions'),
+  reconcile: (transactionId, bankTxnId) => ipcRenderer.invoke('reconcile-transaction', transactionId, bankTxnId)
+};
+
+// Recommendations APIs
+const recommendations = {
+  get: (filters) => ipcRenderer.invoke('get-recommendations', filters),
+  create: (data) => ipcRenderer.invoke('create-recommendation', data),
+  markRead: (id) => ipcRenderer.invoke('mark-recommendation-read', id),
+  apply: (id) => ipcRenderer.invoke('apply-recommendation', id),
+  generate: () => ipcRenderer.invoke('generate-recommendations')
+};
+
+// Voice Command APIs
+const voice = {
+  log: (data) => ipcRenderer.invoke('log-voice-command', data),
+  getLogs: (filters) => ipcRenderer.invoke('get-voice-command-logs', filters),
+  getStats: () => ipcRenderer.invoke('get-voice-stats')
+};
+
+// Error Detection APIs
+const errorDetection = {
+  detect: (types) => ipcRenderer.invoke('detect-errors', types),
+  fix: (errorType, entityId, fixData) => ipcRenderer.invoke('fix-error', errorType, entityId, fixData)
+};
+
+// Enhanced Audit Trail APIs
+const audit = {
+  getTrail: (filters) => ipcRenderer.invoke('get-audit-trail', filters),
+  getSummary: (period) => ipcRenderer.invoke('get-audit-summary', period),
+  search: (query, filters) => ipcRenderer.invoke('search-audit-logs', query, filters)
 };
 
 // Expose protected APIs to renderer
@@ -125,6 +185,19 @@ contextBridge.exposeInMainWorld('api', {
   
   // Settings
   settings,
+  
+  // Authentication
+  auth,
+  
+  // GST Reminders
+  gstReminders,
+  
+  // New Medium Priority Features
+  reconciliation,
+  recommendations,
+  voice,
+  errorDetection,
+  audit,
   
   // Utility
   ping: () => 'pong'

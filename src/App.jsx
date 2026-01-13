@@ -2,6 +2,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import useAppStore from './stores/appStore';
 import { voiceManager } from './services/voiceManager';
 import { nlpEngine } from './core/nlpEngine';
+import LoginScreen from './components/Auth/LoginScreen';
+import LandingPage from './pages/LandingPage';
+import DataManagementPage from './pages/DataManagementPage';
 
 const App = () => {
   const [activeView, setActiveView] = useState('dashboard');
@@ -16,8 +19,15 @@ const App = () => {
   const [audioLevel, setAudioLevel] = useState(0);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
-
-  const {
+  
+  // Authentication state from store
+  const { 
+    isAuthenticated,
+    currentUser,
+    login,
+    logout,
+    checkAuthStatus,
+    isLoadingAuth,
     businessInfo,
     transactions,
     parties,
@@ -54,6 +64,56 @@ const App = () => {
     addProduct,
     addExpense
   } = useAppStore();
+
+  // Check authentication status on mount
+  useEffect(() => {
+    checkAuthStatus();
+  }, []);
+
+  // Initialize app data only when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      const initApp = async () => {
+        await Promise.all([
+          loadBusinessInfo(),
+          loadTransactions({}),
+          loadParties(),
+          loadProducts(),
+          loadExpenses({}),
+          loadDashboardSummary('month'),
+          loadAlerts({}),
+          calculateHealthScore('month')
+        ]);
+      };
+      initApp();
+    }
+  }, [isAuthenticated]);
+
+  // Scroll to bottom of messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Voice event listeners
+  useEffect(() => {
+    voiceManager.onAudioLevelChange((level) => setAudioLevel(level));
+  }, []);
+
+  const handleLogin = useCallback(async (session) => {
+    // App initialization happens in the useEffect above due to isAuthenticated change
+    console.log('Login successful:', session);
+  }, []);
+
+  const handleLogout = useCallback(async () => {
+    await logout();
+    setMessages([]);
+    setActiveView('dashboard');
+  }, [logout]);
+
+  // If not authenticated, show login screen
+  if (!isAuthenticated) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
 
   // Initialize app
   useEffect(() => {
@@ -403,6 +463,7 @@ const App = () => {
             { id: 'reports', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', label: 'Reports' },
             { id: 'insights', icon: 'M13 10V3L4 14h7v7l9-11h-7z', label: 'Smart Insights' },
             { id: 'alerts', icon: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9', label: 'Alerts', badge: unreadAlertCount },
+            { id: 'data', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4', label: 'Data Management' },
           ].map(item => (
             <li key={item.id}>
               <button
@@ -440,6 +501,33 @@ const App = () => {
             <option value="hinglish">Hinglish</option>
           </select>
         </div>
+        
+        {/* User Info */}
+        <div className="flex items-center gap-3 mb-3 p-2 bg-slate-700/50 rounded-lg">
+          <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-full flex items-center justify-center">
+            <span className="text-white text-sm font-medium">
+              {currentUser?.username?.charAt(0).toUpperCase() || 'U'}
+            </span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-white text-sm font-medium truncate">
+              {currentUser?.username || 'User'}
+            </p>
+            <p className="text-slate-400 text-xs capitalize">
+              {currentUser?.role || 'Editor'}
+            </p>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/20 rounded transition-colors"
+            title="Logout"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+          </button>
+        </div>
+        
         <div className="flex items-center gap-2 text-sm text-slate-400">
           <div className={`w-2 h-2 rounded-full ${isSpeaking ? 'bg-yellow-500 animate-pulse' : 'bg-green-500 animate-pulse'}`}></div>
           {isSpeaking ? 'Speaking...' : 'Online & Ready'}
@@ -1055,7 +1143,7 @@ const App = () => {
   const renderContent = () => {
     switch (activeView) {
       case 'dashboard':
-        return renderDashboard();
+        return <LandingPage onNavigate={setActiveView} />;
       case 'chat':
         return renderChatInterface();
       case 'reports':
@@ -1070,6 +1158,8 @@ const App = () => {
         return renderPlaceholder('Parties', 'Manage your customers and vendors here.');
       case 'inventory':
         return renderPlaceholder('Inventory', 'Track your products and stock levels here.');
+      case 'data':
+        return <DataManagementPage />;
       default:
         return renderDashboard();
     }

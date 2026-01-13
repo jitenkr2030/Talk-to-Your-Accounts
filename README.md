@@ -1,260 +1,276 @@
-# Talk to Your Accounts - Landing Page
+# Talk to Your Accounts - AI-Powered Desktop Accounting Software
 
 <p align="center">
   <img src="https://img.shields.io/badge/Version-1.0.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-black.svg" alt="Platform">
+  <img src="https://img.shields.io/badge/Electron-34.0.0-yellow.svg" alt="Electron">
+  <img src="https://img.shields.io/badge/React-18.3.0-61dafb.svg" alt="React">
 </p>
 
 <p align="center">
   <strong>AI-Powered Desktop Accounting Software</strong><br>
-  Download now and experience the future of financial management
+  "You talk. Accounts respond." - Experience the future of financial management
 </p>
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Features
 
-### Download the Application
+### 🤖 AI-Powered Capabilities
 
-**Windows (10/11)**
-- Download: [talk-to-accounts-installer.exe](downloads/windows/talk-to-accounts-installer.exe)
-- Size: ~145 MB
-- Version: 1.0.0
-
-**macOS (11.0+)**
-- Download: [talk-to-accounts-installer.dmg](downloads/mac/talk-to-accounts-installer.dmg)
-- Size: ~162 MB
-- Version: 1.0.0
-
-**Linux (Ubuntu, Fedora, Debian)**
-- Download: [talk-to-accounts-installer.deb](downloads/linux/talk-to-accounts-installer.deb)
-- Size: ~128 MB
-- Version: 1.0.0
-
-### Live Demo
-
-Visit our landing page: **[Coming Soon - Deploy to Vercel]**
-
----
-
-## ✨ Features
-
-### 🤖 AI-Powered Features
-- **Voice Interaction**: Interact with your accounts using natural voice commands
-- **Smart Reporting**: AI-powered financial insights and analytics
-- **Fraud Detection**: Real-time monitoring with suspicious activity alerts
-- **Mistake Memory**: AI learns from common accounting mistakes and suggests corrections
+- **Voice Interaction**: Interact with your accounts using natural voice commands in English, Hindi, or Hinglish
+- **AI Assistant**: Natural language processing for transactions, queries, and report generation
+- **Smart Insights**: AI-powered business health analysis and recommendations
+- **Voice-Enabled Reports**: Auto-read financial reports for accessibility
+- **Intelligent Suggestions**: Context-aware quick actions based on your business data
 
 ### 📊 Core Accounting Features
-- **Smart Dashboard**: Real-time financial overview and analytics
-- **Reconciliation Tools**: Automated bank statement matching
-- **Audit Trails**: Complete activity logging for compliance
-- **Import/Export**: Seamless data migration from Tally, Busy, and Marg
 
-### 🔒 Security Features
-- **Role-Based Access Control**: Granular user permissions
-- **Security Dashboard**: Comprehensive security monitoring
-- **Emergency Lock**: Quick access control in emergencies
-- **Local Data Storage**: All data stored locally with SQLite
+- **Transaction Management**: Record sales, purchases, and expenses with voice or text
+- **Party Management**: Manage customers and vendors with complete contact details
+- **Inventory Tracking**: Products, stock levels, and pricing management
+- **Comprehensive Reports**: Sales, GST, Profit & Loss, Balance Sheet, Cash Flow, and Outstanding Aging
+- **Auto-Reconciliation**: Automated matching and error detection
+- **GST Compliance**: GSTR-1 and GSTR-3B ready reports
 
-### 💻 Platform Support
-- Windows 10/11 (64-bit)
-- macOS 11.0+ (Apple Silicon & Intel)
-- Linux (Ubuntu, Fedora, Debian)
+### 🔒 Security & Data Protection
 
----
+- **Role-Based Access Control**: Admin, Editor, and Viewer roles
+- **Encrypted Exports**: AES-256 encrypted data backups for secure sharing
+- **Local Data Storage**: SQLite database with all data stored locally
+- **Audit Trails**: Complete activity logging for compliance and tracking
+- **Secure Authentication**: Session-based login system
 
-## 📦 What's Included
+### 💡 Smart Features
 
-```
-Talk-to-Your-Accounts/
-├── index.html                  # Main landing page
-├── vercel.json                 # Vercel deployment configuration
-├── VERCEL_DEPLOYMENT.md        # Complete deployment guide
-├── README.md                   # This file
-└── downloads/
-    ├── windows/
-    │   └── talk-to-accounts-installer.exe
-    ├── mac/
-    │   └── talk-to-accounts-installer.dmg
-    └── linux/
-        └── talk-to-accounts-installer.deb
-```
+- **Business Health Score**: AI-calculated overall business health with detailed breakdowns
+- **Alert System**: Real-time notifications for GST filing, payments, and stock levels
+- **Quick Actions**: One-click access to common tasks
+- **Multi-Language Support**: English, Hindi, and Hinglish interfaces
 
 ---
 
-## 🛠️ Development
+## 📦 Tech Stack
 
-### Local Development
+- **Frontend**: React 18 with Vite, TailwindCSS
+- **Desktop Runtime**: Electron 34
+- **Backend**: Node.js with IPC bridge
+- **Database**: SQLite
+- **State Management**: Zustand
+- **Voice Recognition**: Web Speech API
+- **Text-to-Speech**: Native browser TTS
+
+---
+
+## 🛠️ Installation & Setup
+
+### Prerequisites
+
+- Node.js 18+ and npm
+- Operating System: Windows 10/11, macOS 11+, or Linux
+
+### Development Setup
 
 1. **Clone the repository**
    ```bash
    git clone https://github.com/jitenkr2030/Talk-to-Your-Accounts.git
-   cd Talk-to-Your-Accounts
+   cd Talk-to-Your-Accounts/talk-to-your-accounts
    ```
 
-2. **View the landing page**
-   - Open `index.html` in your browser
-   - Or use a local server:
-     ```bash
-     npx serve .
-     ```
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-3. **Test download functionality**
-   - Click each platform's download button
-   - Verify files download correctly
+3. **Start development server**
+   ```bash
+   npm run dev
+   ```
 
-### Deployment to Vercel
+4. **Run in Electron**
+   ```bash
+   npm run electron
+   ```
 
-#### Option 1: Vercel Drop (Recommended)
-1. Go to [vercel.com/drop](https://vercel.com/drop)
-2. Drag & drop the `landing-page` folder
-3. Your site will be deployed instantly!
+### Production Build
 
-#### Option 2: Vercel CLI
 ```bash
-# Install Vercel CLI
-npm install -g vercel
+# Build for production
+npm run build
 
-# Login to Vercel
-vercel login
-
-# Deploy to production
-vercel --prod
+# Package for current platform
+npm run package
 ```
-
-#### Option 3: GitHub Integration
-1. Push this repository to your GitHub
-2. Visit [vercel.com](https://vercel.com)
-3. Import the repository
-4. Vercel will auto-deploy on every push
 
 ---
 
-## 📱 Landing Page Sections
+## 📁 Project Structure
 
-1. **Hero Section** - Compelling headline with download buttons
-2. **Features** - 9 key features with icons and descriptions
-3. **Download** - Platform-specific download cards
-4. **Screenshots** - Feature visualizations
-5. **Technical Specs** - Security and performance details
-6. **Testimonials** - Customer reviews
-7. **Call-to-Action** - Final download prompt
-8. **Footer** - Links and company info
+```
+talk-to-your-accounts/
+├── electron/
+│   ├── database.js          # SQLite database setup and queries
+│   ├── main.js              # Electron main process and IPC handlers
+│   └── preload.js           # Preload script for secure IPC
+├── public/
+│   ├── favicon.svg
+│   └── manifest.json
+├── src/
+│   ├── components/
+│   │   ├── Auth/
+│   │   │   └── LoginScreen.jsx
+│   │   └── features/
+│   │       └── AlertNotificationCenter.jsx
+│   ├── core/
+│   │   └── nlpEngine.js     # Natural language processing engine
+│   ├── pages/
+│   │   ├── LandingPage.jsx  # Main dashboard with AI command center
+│   │   └── DataManagementPage.jsx  # Backup, restore, export
+│   ├── services/
+│   │   ├── encryptedExport.js    # AES-256 encryption for exports
+│   │   ├── errorDetection.js     # Transaction validation
+│   │   ├── reconciliation.js     # Auto-matching logic
+│   │   ├── voiceCommand.js       # Voice input handling
+│   │   ├── voiceManager.js       # Text-to-speech
+│   │   └── auditTrail.js         # Activity logging
+│   ├── stores/
+│   │   └── appStore.js      # Zustand state management
+│   ├── styles/
+│   │   └── index.css        # Global styles
+│   ├── App.jsx              # Main application component
+│   └── main.jsx             # Entry point
+├── package.json
+├── vite.config.js
+├── tailwind.config.js
+└── README.md
+```
+
+---
+
+## 🎯 Key Components
+
+### LandingPage.jsx
+The modern dashboard featuring:
+- AI command center with search and voice input
+- Real-time financial metrics (sales, receivables, expenses, cash flow)
+- Quick actions for common tasks
+- Recent transactions list
+- Business health score card
+- Alerts and insights panel
+
+### NLP Engine
+Natural language processing for:
+- Transaction recording ("Sold goods worth ₹5000 to John")
+- Report generation ("Show GST report for January")
+- Business queries ("How much did I sell today?")
+- Insights requests ("Business health check")
+
+### Security Features
+
+#### Encrypted Exports
+```javascript
+// AES-256-CBC encryption for secure data sharing
+const encryptedData = await exportService.createEncryptedBackup(password);
+```
+
+#### Role-Based Access
+- **Admin**: Full access to all features and settings
+- **Editor**: Can create, edit, and delete records
+- **Viewer**: Read-only access to reports and data
+
+---
+
+## 📱 User Interface
+
+### Dashboard View
+- Welcome message with personalized greeting
+- Four key metric cards with trend indicators
+- Six quick action buttons
+- Recent transactions with type indicators
+- Alerts panel with severity levels
+- Business health score visualization
+- Party and product summary
+- Expense breakdown by category
+
+### AI Assistant
+- Chat interface for natural language interaction
+- Voice input with visual feedback
+- Auto-read reports option
+- Transaction confirmation flow
+- Report generation and display
+
+### Reports
+- Sales Report
+- GST Report (GSTR-1/GSTR-3B ready)
+- Profit & Loss Statement
+- Balance Sheet
+- Cash Flow Statement
+- Outstanding Aging Report
+- Expense Summary
 
 ---
 
 ## 🔧 Configuration
 
-### Download Files
+### Environment Variables
 
-When ready to replace placeholder files with actual installers:
+Create a `.env` file in the root directory:
 
-1. **Windows Installer**
-   - Replace: `downloads/windows/talk-to-accounts-installer.exe`
-   - Expected size: ~145 MB
-   - Format: .exe (NSIS or similar installer)
-
-2. **macOS Installer**
-   - Replace: `downloads/mac/talk-to-accounts-installer.dmg`
-   - Expected size: ~162 MB
-   - Format: .dmg (disk image with app bundle)
-
-3. **Linux Installer**
-   - Replace: `downloads/linux/talk-to-accounts-installer.deb`
-   - Expected size: ~128 MB
-   - Format: .deb (Debian package)
-
-### Customization
-
-Edit `index.html` to customize:
-- **Colors**: Update CSS variables in `<style>` section
-- **Content**: Modify text in HTML sections
-- **Links**: Update download links and external URLs
-- **Analytics**: Add tracking codes in `<head>`
-
----
-
-## 📊 Analytics & Tracking
-
-To add analytics to the landing page:
-
-### Google Analytics
-Add this to the `<head>` section of `index.html`:
-```html
-<!-- Google Analytics -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'GA_MEASUREMENT_ID');
-</script>
+```env
+VITE_APP_NAME=Talk to Your Accounts
+VITE_APP_VERSION=1.0.0
 ```
 
-### Download Tracking
-The download buttons log to console. To track downloads:
-1. Replace `downloadApp()` function with analytics integration
-2. Example:
-```javascript
-function downloadApp(platform) {
-  gtag('event', 'download', {
-    'event_category': 'Download',
-    'event_label': platform
-  });
-  // Continue with download...
-}
-```
+### Database Configuration
+
+The application uses SQLite with the following tables:
+- `users` - User accounts and roles
+- `business_info` - Business details
+- `parties` - Customers and vendors
+- `products` - Product catalog
+- `transactions` - Financial transactions
+- `expenses` - Expense records
+- `audit_logs` - Activity tracking
+- `alerts` - System notifications
 
 ---
 
-## 🔒 Security
+## 📊 Analytics & Performance
 
-### Current Security Features
-- ✅ No external dependencies (self-contained HTML)
-- ✅ Local data storage (SQLite)
-- ✅ Role-based access control
-- ✅ Complete audit trails
-- ✅ Secure download delivery
+### Current Performance Metrics
+- **Startup Time**: < 3 seconds
+- **Memory Usage**: ~150 MB typical
+- **Database Size**: Compact single-file SQLite
+- **UI Responsiveness**: 60fps smooth animations
 
-### Recommendations for Production
-1. **HTTPS**: Always serve over HTTPS
-2. **CDN**: Use CDN for static assets
-3. **WAF**: Enable Web Application Firewall
-4. **DDoS**: Enable DDoS protection
-5. **Rate Limiting**: Implement download rate limits
+### Optimization Features
+- Lazy loading of components
+- Efficient state management with Zustand
+- Debounced voice input processing
+- Optimistic UI updates
 
 ---
 
-## 📈 Performance
+## 🔐 Security Measures
 
-### Current Performance
-- ⏱️ Load time: < 2s
-- 📦 Total size: ~75 KB (HTML only)
-- 🎨 No external dependencies
-- 📱 Fully responsive
-- ♿ Accessible
-
-### Optimization Tips
-1. Compress download files (use UPX for Windows)
-2. Optimize images before adding screenshots
-3. Enable Gzip compression on server
-4. Use CDN for global delivery
-5. Implement caching headers
+1. **Local Data Storage**: All data stored in SQLite on local machine
+2. **Encrypted Backups**: AES-256 encryption for export files
+3. **Session Management**: Secure authentication with session tokens
+4. **Audit Logging**: Complete trail of all actions
+5. **Input Validation**: Server-side validation for all inputs
 
 ---
 
 ## 🤝 Contributing
 
-We welcome contributions! Please read our contributing guidelines before submitting PRs.
+We welcome contributions! Please follow these steps:
 
-### Ways to Contribute
-- Report bugs and issues
-- Suggest new features
-- Improve documentation
-- Add translations
-- Create tutorials
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ---
 
@@ -267,32 +283,31 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🆘 Support
 
 ### Getting Help
-- **Documentation**: See [VERCEL_DEPLOYMENT.md](VERCEL_DEPLOYMENT.md)
+- **Documentation**: See this README and code comments
 - **Issues**: Report bugs via GitHub Issues
 - **Discussions**: Use GitHub Discussions
 
 ### Common Questions
 
-**Q: How do I replace the placeholder installers?**
-A: Simply replace the files in the `downloads/` directory with your actual installer files.
+**Q: How do I backup my data?**
+A: Go to Data Management page and use "Export Encrypted" feature with a secure password.
 
-**Q: Can I customize the landing page design?**
-A: Yes! The entire page is in `index.html` with embedded CSS. Edit it freely.
+**Q: Can I use this offline?**
+A: Yes! All data is stored locally and no internet connection is required for core features.
 
-**Q: How do I track download statistics?**
-A: Integrate Google Analytics or another tracking service. See the Analytics section above.
+**Q: What languages does the voice input support?**
+A: English, Hindi, and Hinglish are fully supported.
 
-**Q: Is the landing page mobile-friendly?**
-A: Yes! It's fully responsive and works on all device sizes.
+**Q: How secure is my data?**
+A: Data is stored locally in SQLite with optional AES-256 encryption for exports.
 
 ---
 
 ## 🔗 Quick Links
 
-- **Live Landing Page**: [Deploy to Vercel](#-quick-start)
 - **Repository**: https://github.com/jitenkr2030/Talk-to-Your-Accounts
 - **Issues**: https://github.com/jitenkr2030/Talk-to-Your-Accounts/issues
-- **Vercel**: https://vercel.com
+- **Discussions**: https://github.com/jitenkr2030/Talk-to-Your-Accounts/discussions
 
 ---
 

@@ -22,6 +22,129 @@ const useAppStore = create((set, get) => ({
   
   clearError: () => set({ error: null }),
 
+  // ==================== AUTHENTICATION STATE ====================
+  isAuthenticated: false,
+  currentUser: null,
+  sessionToken: null,
+  isLoadingAuth: false,
+  
+  login: async (username, pin) => {
+    get().setLoading('auth', true);
+    try {
+      const result = await window.api.auth.authenticate(username, pin);
+      if (result.success) {
+        set({
+          isAuthenticated: true,
+          currentUser: {
+            id: result.session.userId,
+            username: result.session.username,
+            role: result.session.role
+          },
+          sessionToken: result.session.token,
+          error: null
+        });
+        // Store session in localStorage for persistence
+        localStorage.setItem('sessionToken', result.session.token);
+        localStorage.setItem('currentUser', JSON.stringify(result.session));
+        return { success: true };
+      } else {
+        set({ error: result.message });
+        return { success: false, error: result.message, errorCode: result.error };
+      }
+    } catch (error) {
+      set({ error: 'Authentication failed. Please try again.' });
+      return { success: false, error: error.message };
+    } finally {
+      get().setLoading('auth', false);
+    }
+  },
+  
+  logout: async () => {
+    try {
+      const token = get().sessionToken;
+      if (token) {
+        await window.api.auth.logout(token);
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      set({
+        isAuthenticated: false,
+        currentUser: null,
+        sessionToken: null
+      });
+      localStorage.removeItem('sessionToken');
+      localStorage.removeItem('currentUser');
+    }
+  },
+  
+  checkAuthStatus: async () => {
+    const storedUser = localStorage.getItem('currentUser');
+    const storedToken = localStorage.getItem('sessionToken');
+    
+    if (storedUser && storedToken) {
+      try {
+        const user = JSON.parse(storedUser);
+        // Verify session is still valid
+        set({
+          isAuthenticated: true,
+          currentUser: {
+            id: user.userId,
+            username: user.username,
+            role: user.role
+          },
+          sessionToken: storedToken
+        });
+        return true;
+      } catch (error) {
+        localStorage.removeItem('sessionToken');
+        localStorage.removeItem('currentUser');
+        return false;
+      }
+    }
+    return false;
+  },
+  
+  loadUsers: async () => {
+    try {
+      const result = await window.api.auth.getUsers();
+      return result.users || [];
+    } catch (error) {
+      console.error('Failed to load users:', error);
+      return [];
+    }
+  },
+  
+  createUser: async (userData) => {
+    try {
+      const result = await window.api.auth.createUser(userData);
+      return { success: true, user: result.user };
+    } catch (error) {
+      set({ error: error.message });
+      return { success: false, error: error.message };
+    }
+  },
+  
+  deleteUser: async (userId) => {
+    try {
+      await window.api.auth.deleteUser(userId);
+      return { success: true };
+    } catch (error) {
+      set({ error: error.message });
+      return { success: false, error: error.message };
+    }
+  },
+  
+  updateUserPin: async (userId, oldPin, newPin) => {
+    try {
+      const result = await window.api.auth.updateUserPin(userId, oldPin, newPin);
+      return result;
+    } catch (error) {
+      set({ error: error.message });
+      return { success: false, error: error.message };
+    }
+  },
+
   // ==================== BUSINESS INFO ====================
   businessInfo: {},
   settings: {},
