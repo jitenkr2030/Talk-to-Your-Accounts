@@ -206,12 +206,8 @@ contextBridge.exposeInMainWorld('api', {
   // GST Reminders
   gstReminders,
   
-  // New Medium Priority Features
-  reconciliation,
-  recommendations,
-  voice,
-  errorDetection,
-  audit,
+  // New Voice Module (Offline)
+  voiceModule,
 
   // Subscription & Monetization
   subscription,
@@ -220,33 +216,95 @@ contextBridge.exposeInMainWorld('api', {
   ping: () => 'pong'
 });
 
-// Voice recognition API (browser-based, exposed through context bridge)
+// New offline voice module API
 contextBridge.exposeInMainWorld('voiceAPI', {
-  isSupported: () => 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window,
+  // Core listening operations
+  startListening: () => ipcRenderer.invoke('voice:start'),
+  stopListening: () => ipcRenderer.invoke('voice:stop'),
+  toggleListening: () => ipcRenderer.invoke('voice:toggle'),
+  cancelRecording: () => ipcRenderer.invoke('voice:cancel'),
   
-  start: (options) => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    
-    recognition.continuous = options?.continuous || false;
-    recognition.interimResults = options?.interimResults || false;
-    recognition.lang = options?.lang || 'en-IN';
-    
-    return recognition;
+  // State queries
+  getStatus: () => ipcRenderer.invoke('voice:status'),
+  getAudioLevel: () => ipcRenderer.invoke('voice:get-audio-level'),
+  isListening: () => ipcRenderer.invoke('voice:is-listening'),
+  
+  // Settings management
+  getSettings: () => ipcRenderer.invoke('voice:get-settings'),
+  saveSettings: (settings) => ipcRenderer.invoke('voice:save-settings', settings),
+  setEnabled: (enabled) => ipcRenderer.invoke('voice:set-enabled', enabled),
+  setLanguage: (language) => ipcRenderer.invoke('voice:set-language', language),
+  
+  // Dictionary operations
+  getDictionary: () => ipcRenderer.invoke('voice:get-dictionary'),
+  addTerm: (spoken, mapped, category) => ipcRenderer.invoke('voice:add-term', spoken, mapped, category),
+  removeTerm: (id) => ipcRenderer.invoke('voice:remove-term', id),
+  updateTerm: (id, updates) => ipcRenderer.invoke('voice:update-term', id, updates),
+  searchTerms: (query) => ipcRenderer.invoke('voice:search-terms', query),
+  
+  // Model management
+  getModels: () => ipcRenderer.invoke('voice:get-models'),
+  setModel: (modelId) => ipcRenderer.invoke('voice:set-model', modelId),
+  downloadModel: (modelId) => ipcRenderer.invoke('voice:download-model', modelId),
+  
+  // Command operations
+  parseCommand: (text) => ipcRenderer.invoke('voice:parse-command', text),
+  executeCommand: (command) => ipcRenderer.invoke('voice:execute-command', command),
+  confirmCommand: (command) => ipcRenderer.invoke('voice:confirm-command', command),
+  
+  // History
+  getHistory: () => ipcRenderer.invoke('voice:get-history'),
+  clearHistory: () => ipcRenderer.invoke('voice:clear-history'),
+  retryLast: () => ipcRenderer.invoke('voice:retry-last'),
+  
+  // Event listeners setup
+  onStatusChange: (callback) => {
+    ipcRenderer.on('voice:status', (_, data) => callback(data));
+    return () => ipcRenderer.removeListener('voice:status', callback);
   },
-  
-  speak: (text, options) => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = options?.lang || 'en-IN';
-    utterance.rate = options?.rate || 1;
-    utterance.pitch = options?.pitch || 1;
-    utterance.volume = options?.volume || 1;
-    
-    return new Promise((resolve, reject) => {
-      utterance.onend = resolve;
-      utterance.onerror = reject;
-      window.speechSynthesis.speak(utterance);
-    });
+  onListeningStarted: (callback) => {
+    ipcRenderer.on('voice:listeningStarted', (_, data) => callback(data));
+    return () => ipcRenderer.removeListener('voice:listeningStarted', callback);
+  },
+  onListeningStopped: (callback) => {
+    ipcRenderer.on('voice:listeningStopped', (_, data) => callback(data));
+    return () => ipcRenderer.removeListener('voice:listeningStopped', callback);
+  },
+  onTranscriptionComplete: (callback) => {
+    ipcRenderer.on('voice:transcriptionComplete', (_, data) => callback(data));
+    return () => ipcRenderer.removeListener('voice:transcriptionComplete', callback);
+  },
+  onPartialTranscription: (callback) => {
+    ipcRenderer.on('voice:partialTranscription', (_, data) => callback(data));
+    return () => ipcRenderer.removeListener('voice:partialTranscription', callback);
+  },
+  onCommandReady: (callback) => {
+    ipcRenderer.on('voice:commandReady', (_, data) => callback(data));
+    return () => ipcRenderer.removeListener('voice:commandReady', callback);
+  },
+  onCommandParsed: (callback) => {
+    ipcRenderer.on('voice:commandParsed', (_, data) => callback(data));
+    return () => ipcRenderer.removeListener('voice:commandParsed', callback);
+  },
+  onAudioLevel: (callback) => {
+    ipcRenderer.on('voice:audioLevel', (_, data) => callback(data));
+    return () => ipcRenderer.removeListener('voice:audioLevel', callback);
+  },
+  onError: (callback) => {
+    ipcRenderer.on('voice:error', (_, data) => callback(data));
+    return () => ipcRenderer.removeListener('voice:error', callback);
+  },
+  onModelChanged: (callback) => {
+    ipcRenderer.on('voice:modelChanged', (_, data) => callback(data));
+    return () => ipcRenderer.removeListener('voice:modelChanged', callback);
+  },
+  onDownloadProgress: (callback) => {
+    ipcRenderer.on('voice:download-progress', (_, data) => callback(data));
+    return () => ipcRenderer.removeListener('voice:download-progress', callback);
+  },
+  onHistoryUpdated: (callback) => {
+    ipcRenderer.on('voice:historyUpdated', (_, data) => callback(data));
+    return () => ipcRenderer.removeListener('voice:historyUpdated', callback);
   }
 });
 

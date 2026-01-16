@@ -2873,6 +2873,9 @@ app.whenReady().then(() => {
   initializeDatabase();
   createWindow();
   
+  // Initialize Voice Module
+  initializeVoiceModule();
+
   // Run periodic alerts check every hour
   setInterval(runPeriodicAlerts, 60 * 60 * 1000);
   
@@ -2888,3 +2891,19 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+
+// ==================== VOICE MODULE INITIALIZATION ====================
+function initializeVoiceModule() {
+  try {
+    // Try to initialize the voice handlers
+    const { setupVoiceHandlers } = require('./src/main/services/voice/VoiceIPCHandlers.js');
+    
+    // Initialize with main window reference
+    setupVoiceHandlers(mainWindow);
+    
+    console.log('[Main] Voice Module initialized successfully');
+  } catch (error) {
+    console.warn('[Main] Voice Module initialization warning:', error.message);
+    // Voice module is optional - continue without it
+  }
+}
