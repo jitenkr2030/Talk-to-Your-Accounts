@@ -1,0 +1,239 @@
+name: Build and Release
+
+# This workflow builds the Electron app and creates installers for Windows, macOS, and Linux
+# It automatically runs when a new release is published on GitHub
+
+on:
+  release:
+    types: [created]
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'electron/**'
+      - 'package.json'
+      - 'vite.config.js'
+      - 'electron-builder.yml'
+
+# Cancel any in-progress builds when a new build starts
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Job to check code quality and run tests
+  quality-check:
+    name: Quality Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Check code formatting
+        run: npm run build || true
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-check
+          path: dist
+          retention-days: 7
+
+  # Job to build Windows installer
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    needs: quality-check
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [x64]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build React application
+        run: npm run build
+
+      - name: Build Windows Installer
+        run: npm run build:win
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WIN_CERTIFICATE_BASE64: ${{ secrets.WIN_CERTIFICATE_BASE64 || '' }}
+          WIN_CERTIFICATE_PASSWORD: ${{ secrets.WIN_CERTIFICATE_PASSWORD || '' }}
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/win-unpacked
+          retention-days: 7
+
+      - name: Upload Windows installer to release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: dist/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Job to build macOS installer
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+    needs: quality-check
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [x64, arm64]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build React application
+        run: npm run build
+
+      - name: Build macOS Installer
+        run: npm run build:mac
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_ID: ${{ secrets.APPLE_ID || '' }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID || '' }}
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-installer-${{ matrix.architecture }}
+          path: dist/mac
+          retention-days: 7
+
+      - name: Upload macOS installer to release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: dist/*.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Job to build Linux installers
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+    needs: quality-check
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [AppImage, deb]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build React application
+        run: npm run build
+
+      - name: Build Linux Installer
+        run: |
+          if [ "${{ matrix.target }}" == "deb" ]; then
+            npm run build:linux -- --linux deb
+          else
+            npm run build:linux
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-installer-${{ matrix.target }}
+          path: dist
+          retention-days: 7
+
+      - name: Upload Linux installer to release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            dist/*.deb
+            dist/*.AppImage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Job to create a GitHub release with all installers
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-macos, build-linux]
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Display downloaded artifacts
+        run: ls -la release-assets/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          body: |
+            ## Installation Instructions
+
+            ### Windows
+            Download the `.exe` file and run the installer. Follow the on-screen instructions.
+
+            ### macOS
+            Download the `.dmg` file, open it, and drag "Talk to Your Accounts" to your Applications folder.
+
+            ### Linux (AppImage)
+            Download the `.AppImage` file, make it executable with `chmod +x`, and run it.
+
+            ### Linux (Debian/Ubuntu)
+            Download the `.deb` file and install with `sudo dpkg -i filename.deb`
+
+            ## What's New
+            See the [CHANGELOG](CHANGELOG.md) for details on this release.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

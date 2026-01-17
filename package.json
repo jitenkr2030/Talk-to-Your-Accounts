@@ -1,0 +1,61 @@
+{
+  "name": "talk-to-your-accounts",
+  "version": "1.0.0",
+  "description": "AI-powered offline-first desktop accounting application",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:react\" \"npm run dev:electron\"",
+    "dev:react": "vite",
+    "dev:electron": "wait-on http://localhost:5173 && electron .",
+    "build": "vite build",
+    "build:react": "vite build",
+    "build:electron": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "start": "electron .",
+    "postinstall": "electron-builder install-app-deps",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "accounting",
+    "voice",
+    "electron",
+    "react",
+    "desktop",
+    "offline",
+    "business"
+  ],
+  "author": {
+    "name": "Jiten Kumar",
+    "email": "jitenkr2030@gmail.com",
+    "url": "https://github.com/jitenkr2030"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "autoprefixer": "^10.4.16",
+    "concurrently": "^8.2.2",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.0",
+    "wait-on": "^7.2.0"
+  },
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "better-sqlite3": "^9.2.2",
+    "extract-zip": "^2.0.1",
+    "jspdf": "^2.5.1",
+    "jspdf-autotable": "^3.8.1",
+    "lucide-react": "^0.562.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "xlsx": "^0.18.5",
+    "zustand": "^4.4.7"
+  }
+}
