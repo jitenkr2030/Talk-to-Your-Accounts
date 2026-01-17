@@ -39,8 +39,18 @@ jobs:
       - name: Build React application
         run: npm run build
 
+      - name: Install Wine (for Windows builds on Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wine wine32 wine64 xvfb
+        continue-on-error: true
+
       - name: Build Windows Installer
-        run: npm run build:win
+        run: |
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1024x768x24 &
+          sleep 2
+          npm run build:win
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
