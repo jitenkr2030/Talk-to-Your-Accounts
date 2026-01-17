@@ -23,7 +23,7 @@ jobs:
   build-windows:
     name: Build Windows
     runs-on: windows-2019
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -33,19 +33,21 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Configure npm to use prebuilt binaries
-        run: npm config set build_from_source false
-
       - name: Cache node_modules
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: ${{ runner.os }}-node20-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-electron28-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-node20-
+            ${{ runner.os }}-electron28-
 
       - name: Install dependencies
         run: npm install
+        env:
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+
+      - name: Rebuild native modules for Electron
+        run: npx electron-rebuild -f -w better-sqlite3
         env:
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
 
@@ -68,7 +70,7 @@ jobs:
   build-macos:
     name: Build macOS
     runs-on: macos-11
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -78,19 +80,21 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Configure npm to use prebuilt binaries
-        run: npm config set build_from_source false
-
       - name: Cache node_modules
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: ${{ runner.os }}-node20-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-electron28-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-node20-
+            ${{ runner.os }}-electron28-
 
       - name: Install dependencies
         run: npm install
+        env:
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+
+      - name: Rebuild native modules for Electron
+        run: npx electron-rebuild -f -w better-sqlite3
         env:
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
 
@@ -113,7 +117,7 @@ jobs:
   build-linux:
     name: Build Linux
     runs-on: ubuntu-20.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -123,19 +127,44 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Configure npm to use prebuilt binaries
-        run: npm config set build_from_source false
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            python3 \
+            build-essential \
+            libnss3 \
+            libnspr4 \
+            libatk1.0-0 \
+            libatk-bridge2.0-0 \
+            libcups2 \
+            libdrm2 \
+            libxkbcommon0 \
+            libxcomposite1 \
+            libxdamage1 \
+            libxfixes3 \
+            libxrandr2 \
+            libgbm1 \
+            libasound2 \
+            libatspi2.0-0 \
+            libgtk-3-0
+        shell: bash
 
       - name: Cache node_modules
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: ${{ runner.os }}-node20-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-electron28-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-node20-
+            ${{ runner.os }}-electron28-
 
       - name: Install dependencies
         run: npm install
+        env:
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+
+      - name: Rebuild native modules for Electron
+        run: npx electron-rebuild -f -w better-sqlite3
         env:
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
 
