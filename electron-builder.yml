@@ -1,0 +1,122 @@
+# electron-builder configuration
+# This file configures how electron-builder creates installers
+
+appId: com.talktoyouraccounts.app
+productName: Talk to Your Accounts
+
+# Directory structure for the build output
+directories:
+  output: dist
+  buildResources: build
+
+# Files to include in the final package (relative to project root)
+files:
+  - from: .
+    filter:
+      - "!node_modules/*"
+      - "!dist/*"
+      - "!.git/**"
+      - "!*.md"
+      - "!package-lock.json"
+      - "!yarn.lock"
+      - "!*.log"
+      - "!npm-debug.log*"
+      - "!yarn-error.log*"
+      - "!vercel.json"
+      - "!VERCEL_DEPLOYMENT.md"
+      - "!landing/**"
+      - "!scripts/**"
+      - "!public/**"
+      - "!src/**"
+      - "!electron/**"
+      - "!tailwind.config.js"
+      - "!postcss.config.js"
+      - "!tsconfig.json"
+      - "!tsconfig.node.json"
+      - "!vite.config.js"
+
+# Additional files to include
+extraFiles:
+  - from: dist
+    to: .
+    filter:
+      - "**/*"
+
+# Define win, mac, and linux targets
+win:
+  target: nsis
+  icon: public/icon.png
+  artifactName: Talk-to-Your-Accounts-Setup-${version}.exe
+
+mac:
+  target: dmg
+  icon: public/icon.icns
+  artifactName: Talk-to-Your-Accounts-${version}.dmg
+
+linux:
+  target:
+    - AppImage
+    - deb
+  icon: public/icon.png
+  artifactName: Talk-to-Your-Accounts-${version}
+
+# NSIS installer configuration for Windows
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Talk to Your Accounts
+  include: build/installer.nsh
+
+# DMG configuration for macOS
+dmg:
+  contents:
+    - type: link
+      path: /Applications
+      name: Applications
+    - type: file
+      path: dist/mac/Talk to Your Accounts.app
+      name: Talk to Your Accounts
+      x: 410
+      y: 230
+  sign: false
+
+# AppImage configuration for Linux
+appImage:
+  systemIntegration: ask
+  maintainer: Jiten Kumar <jitenkr2030@gmail.com>
+  desktop:
+    - Name=Talk to Your Accounts
+      Exec=Talk-to-Your-Accounts
+      Terminal=false
+      Type=Application
+      Categories=Office;Finance;Accounting;
+
+# Debian package configuration for Linux
+deb:
+  depends:
+    - libnss3
+    - libnspr4
+    - libatk1.0-0
+    - libatk-bridge2.0-0
+    - libcups2
+    - libdrm2
+    - libxkbcommon0
+    - libxcomposite1
+    - libxdamage1
+    - libxfixes3
+    - libxrandr2
+    - libgbm1
+    - libasound2t
+
+# After-pack configuration - copy additional files to dist
+afterPack: |
+  # No additional operations needed
+
+# Release configuration (used by GitHub Actions)
+publish:
+  provider: github
+  owner: jitenkr2030
+  repo: Talk-to-Your-Accounts
+  private: false

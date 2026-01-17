@@ -45,6 +45,16 @@ function createWindow() {
 
   mainWindow.loadURL('http://localhost:5173');
 
+  // For production builds, load the built files
+  const isProduction = process.env.NODE_ENV === 'production' || !process.argv.some(arg => arg.includes('--dev'));
+  
+  if (isProduction) {
+    const path = require('path');
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+  } else {
+    mainWindow.loadURL('http://localhost:5173');
+  }
+
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
     mainWindow.maximize();
