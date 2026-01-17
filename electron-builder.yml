@@ -90,11 +90,6 @@ deb:
     - libgbm1
     - libasound2
 
-# AppImage configuration for Linux
-appImage:
-  systemIntegration: ask
-  maintainer: Jiten Kumar <jitenkr2030@gmail.com>
-
 # Release configuration
 publish:
   provider: github

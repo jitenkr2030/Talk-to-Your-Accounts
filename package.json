@@ -26,7 +26,11 @@
     "offline",
     "business"
   ],
-  "author": "Jiten Kumar",
+  "author": {
+    "name": "Jiten Kumar",
+    "email": "jitenkr2030@gmail.com",
+    "url": "https://github.com/jitenkr2030"
+  },
   "license": "MIT",
   "devDependencies": {
     "@types/react": "^18.2.0",
