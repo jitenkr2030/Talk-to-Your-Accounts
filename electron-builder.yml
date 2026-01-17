@@ -9,10 +9,11 @@ directories:
   output: dist
   buildResources: build
 
-# Files to include in the final package (relative to project root)
+# Files to include in the final package
 files:
   - from: .
     filter:
+      # Exclude development-only files and large dependencies
       - "!node_modules/*"
       - "!dist/*"
       - "!.git/**"
@@ -26,16 +27,20 @@ files:
       - "!VERCEL_DEPLOYMENT.md"
       - "!landing/**"
       - "!scripts/**"
-      - "!public/**"
-      - "!src/**"
-      - "!electron/**"
-      - "!tailwind.config.js"
-      - "!postcss.config.js"
-      - "!tsconfig.json"
-      - "!tsconfig.node.json"
-      - "!vite.config.js"
+      - "!build/**"
+      - "!.github/**"
+      # Include necessary source files (removed exclusions for electron, src, public)
+      - "electron/**"
+      - "public/**"
+      - "src/**"
+      - "*.json"
+      - "*.js"
+      - "*.jsx"
+      - "*.ts"
+      - "*.tsx"
+      - "*.css"
 
-# Additional files to include
+# Additional files to include - copy React build to app root
 extraFiles:
   - from: dist
     to: .
@@ -45,19 +50,19 @@ extraFiles:
 # Define win, mac, and linux targets
 win:
   target: nsis
-  icon: public/icon.png
+  icon: public/favicon.svg
   artifactName: Talk-to-Your-Accounts-Setup-${version}.exe
 
 mac:
   target: dmg
-  icon: public/icon.icns
+  icon: public/favicon.svg
   artifactName: Talk-to-Your-Accounts-${version}.dmg
 
 linux:
   target:
     - AppImage
     - deb
-  icon: public/icon.png
+  icon: public/favicon.svg
   artifactName: Talk-to-Your-Accounts-${version}
 
 # NSIS installer configuration for Windows
@@ -67,31 +72,6 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: Talk to Your Accounts
-  include: build/installer.nsh
-
-# DMG configuration for macOS
-dmg:
-  contents:
-    - type: link
-      path: /Applications
-      name: Applications
-    - type: file
-      path: dist/mac/Talk to Your Accounts.app
-      name: Talk to Your Accounts
-      x: 410
-      y: 230
-  sign: false
-
-# AppImage configuration for Linux
-appImage:
-  systemIntegration: ask
-  maintainer: Jiten Kumar <jitenkr2030@gmail.com>
-  desktop:
-    - Name=Talk to Your Accounts
-      Exec=Talk-to-Your-Accounts
-      Terminal=false
-      Type=Application
-      Categories=Office;Finance;Accounting;
 
 # Debian package configuration for Linux
 deb:
@@ -108,13 +88,14 @@ deb:
     - libxfixes3
     - libxrandr2
     - libgbm1
-    - libasound2t
+    - libasound2
 
-# After-pack configuration - copy additional files to dist
-afterPack: |
-  # No additional operations needed
+# AppImage configuration for Linux
+appImage:
+  systemIntegration: ask
+  maintainer: Jiten Kumar <jitenkr2030@gmail.com>
 
-# Release configuration (used by GitHub Actions)
+# Release configuration
 publish:
   provider: github
   owner: jitenkr2030
