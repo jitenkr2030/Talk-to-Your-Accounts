@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { voiceManager } from './services/voiceManager';
+import { voiceManager } from '../../services/voiceManager';
 
 const LoginScreen = ({ onLogin, onSetupComplete }) => {
   const [pin, setPin] = useState('');

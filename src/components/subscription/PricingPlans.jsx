@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import subscriptionService from '../services/subscriptionService';
-import paymentService from '../services/paymentService';
-import useAppStore from '../stores/appStore';
+import subscriptionService from '../../services/subscriptionService';
+import paymentService from '../../services/paymentService';
+import useAppStore from '../../stores/appStore';
 
 const PricingPlans = ({ onSelectPlan, onClose }) => {
   const [plans, setPlans] = useState([]);

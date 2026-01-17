@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Bell, AlertTriangle, AlertCircle, Info, Check, X, Clock, RefreshCw } from 'lucide-react';
-import { useAppStore } from '../../stores/appStore';
+import useAppStore from '../../stores/appStore';
 
 const AlertNotificationCenter = ({ isOpen, onClose }) => {
   const [alerts, setAlerts] = useState([]);

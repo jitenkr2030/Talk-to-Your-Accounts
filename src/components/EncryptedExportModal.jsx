@@ -17,7 +17,7 @@ import {
   RefreshCw,
   Info
 } from 'lucide-react';
-import encryptedExportService from '../../services/encryptedExport';
+import encryptedExportService from '../services/encryptedExport';
 
 const EncryptedExportModal = ({ isOpen, onClose, onExportComplete }) => {
   const [step, setStep] = useState(1);
