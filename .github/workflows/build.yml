@@ -60,46 +60,6 @@ jobs:
           path: dist/*.exe
           retention-days: 1
 
-  build-macos:
-    name: Build macOS
-    runs-on: macos-11
-    timeout-minutes: 30
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Configure git to not modify line endings
-        run: git config --global core.autocrlf false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Clean and install dependencies
-        run: |
-          rm -rf node_modules
-          npm cache clean --force
-          npm install
-        env:
-          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
-
-      - name: Build React application
-        run: npm run build
-
-      - name: Build macOS Installer
-        run: npm run build:mac
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
-
-      - name: Upload macOS Installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-installer
-          path: dist/*.dmg
-          retention-days: 1
-
   build-linux:
     name: Build Linux
     runs-on: ubuntu-20.04
@@ -172,7 +132,7 @@ jobs:
 
   create-release:
     name: Create Release
-    needs: [build-windows, build-macos, build-linux]
+    needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: startsWith(github.ref, 'refs/tags/')
@@ -184,11 +144,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: windows-installer
-
-      - name: Download macOS Installer
-        uses: actions/download-artifact@v4
-        with:
-          name: macos-installer
 
       - name: Download Linux Installers
         uses: actions/download-artifact@v4
@@ -205,7 +160,6 @@ jobs:
         with:
           files: |
             *.exe
-            *.dmg
             *.deb
             *.AppImage
         env:
