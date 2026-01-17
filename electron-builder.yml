@@ -88,6 +88,8 @@ deb:
     - libasound2
 
 # Release configuration
-# NOTE: Auto-publishing is disabled to prevent conflicts with the GitHub Actions workflow
-# The create-release job handles publishing using softprops/action-gh-release
-publish: never
+publish:
+  provider: github
+  owner: jitenkr2030
+  repo: Talk-to-Your-Accounts
+  private: false
