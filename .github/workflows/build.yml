@@ -132,7 +132,7 @@ jobs:
 
   create-release:
     name: Create Release
-    needs: [build-windows, build-linux]
+    needs: [build-windows]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: startsWith(github.ref, 'refs/tags/')
@@ -145,15 +145,17 @@ jobs:
         with:
           name: windows-installer
 
-      - name: Download Linux Installers
+      - name: Download Linux Installers (optional)
         uses: actions/download-artifact@v4
         with:
           name: linux-installer
+        continue-on-error: true
 
-      - name: Download AppImage
+      - name: Download AppImage (optional)
         uses: actions/download-artifact@v4
         with:
           name: appimage
+        continue-on-error: true
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
