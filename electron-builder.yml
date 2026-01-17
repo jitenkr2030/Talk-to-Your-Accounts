@@ -50,19 +50,16 @@ extraFiles:
 # Define win, mac, and linux targets
 win:
   target: nsis
-  icon: public/favicon.svg
   artifactName: Talk-to-Your-Accounts-Setup-${version}.exe
 
 mac:
   target: dmg
-  icon: public/favicon.svg
   artifactName: Talk-to-Your-Accounts-${version}.dmg
 
 linux:
   target:
     - AppImage
     - deb
-  icon: public/favicon.svg
   artifactName: Talk-to-Your-Accounts-${version}
 
 # NSIS installer configuration for Windows
