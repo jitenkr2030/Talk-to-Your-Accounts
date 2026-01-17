@@ -15,49 +15,43 @@ on:
       - 'vite.config.js'
       - 'electron-builder.yml'
 
+# Permissions required for the workflow to upload release assets
+permissions:
+  contents: write
+  actions: read
+  attestations: read
+  checks: read
+  deployments: read
+  id-token: read
+  issues: read
+  discussions: read
+  packages: read
+  pages: read
+  pull-requests: read
+  repository-projects: read
+  security-events: read
+  statuses: read
+
 # Cancel any in-progress builds when a new build starts
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # Job to check code quality and run tests
-  quality-check:
-    name: Quality Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Check code formatting
-        run: npm run build || true
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: quality-check
-          path: dist
-          retention-days: 7
-
   # Job to build Windows installer
   build-windows:
     name: Build Windows
     runs-on: windows-latest
-    needs: quality-check
     strategy:
       fail-fast: false
       matrix:
         architecture: [x64]
     steps:
+      - name: Configure Git
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -77,8 +71,6 @@ jobs:
         run: npm run build:win
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          WIN_CERTIFICATE_BASE64: ${{ secrets.WIN_CERTIFICATE_BASE64 || '' }}
-          WIN_CERTIFICATE_PASSWORD: ${{ secrets.WIN_CERTIFICATE_PASSWORD || '' }}
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -87,24 +79,20 @@ jobs:
           path: dist/win-unpacked
           retention-days: 7
 
-      - name: Upload Windows installer to release
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: dist/*.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   # Job to build macOS installer
   build-macos:
     name: Build macOS
     runs-on: macos-latest
-    needs: quality-check
     strategy:
       fail-fast: false
       matrix:
         architecture: [x64, arm64]
     steps:
+      - name: Configure Git
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -135,24 +123,20 @@ jobs:
           path: dist/mac
           retention-days: 7
 
-      - name: Upload macOS installer to release
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: dist/*.dmg
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   # Job to build Linux installers
   build-linux:
     name: Build Linux
     runs-on: ubuntu-latest
-    needs: quality-check
     strategy:
       fail-fast: false
       matrix:
         target: [AppImage, deb]
     steps:
+      - name: Configure Git
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -185,16 +169,6 @@ jobs:
           path: dist
           retention-days: 7
 
-      - name: Upload Linux installer to release
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: |
-            dist/*.deb
-            dist/*.AppImage
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   # Job to create a GitHub release with all installers
   create-release:
     name: Create Release
@@ -202,6 +176,11 @@ jobs:
     needs: [build-windows, build-macos, build-linux]
     if: startsWith(github.ref, 'refs/tags/')
     steps:
+      - name: Configure Git
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
