@@ -31,7 +31,7 @@ const feedbackMessages = {
       reconcile_batch: 'Reconciled {count} transactions totaling {amount}',
       reconcile_by_party: 'All transactions with {party} have been reconciled',
       reconcile_by_date: 'Reconciled all transactions for {date}',
-      un reconcile: 'Transaction {id} has been marked as unreconciled',
+      un_reconcile: 'Transaction {id} has been marked as unreconciled',
       mark_reconciled: 'Transaction {id} marked as reconciled',
       flag_transaction: 'Transaction {id} flagged for manual review'
     },
@@ -40,7 +40,7 @@ const feedbackMessages = {
       reconcile_batch: '{count} लेनदेन का कुल {amount} मिलान किया',
       reconcile_by_party: '{party} के सभी लेनदेन मिला लिए गए हैं',
       reconcile_by_date: '{date} के सभी लेनदेन मिला लिए गए हैं',
-      un reconcile: 'लेनदेन {id} को अनमिला चिह्नित किया गया',
+      un_reconcile: 'लेनदेन {id} को अनमिला चिह्नित किया गया',
       mark_reconciled: 'लेनदेन {id} को मिला चिह्नित किया गया',
       flag_transaction: 'लेनदेन {id} को मैन्युअल समीक्षा के लिए फ्लैग किया गया'
     },
@@ -49,7 +49,7 @@ const feedbackMessages = {
       reconcile_batch: '{count} transactions totaling {amount} reconcile kiye',
       reconcile_by_party: '{party} ke saare transactions reconcile ho gaye',
       reconcile_by_date: '{date} ke saare transactions reconcile ho gaye',
-      un reconcile: 'Transaction {id} ko unreconcile mark kiya',
+      un_reconcile: 'Transaction {id} ko unreconcile mark kiya',
       mark_reconciled: 'Transaction {id} ko reconciled mark kiya',
       flag_transaction: 'Transaction {id} ko manual review ke liye flag kiya'
     }
