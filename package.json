@@ -50,6 +50,7 @@
     "archiver": "^7.0.1",
     "better-sqlite3": "^9.2.2",
     "extract-zip": "^2.0.1",
+    "fuse.js": "^7.1.0",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.1",
     "lucide-react": "^0.562.0",
