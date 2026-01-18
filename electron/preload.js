@@ -124,7 +124,14 @@ const reconciliation = {
   addTransaction: (data) => ipcRenderer.invoke('add-bank-transaction', data),
   processStatement: (id) => ipcRenderer.invoke('process-bank-statement', id),
   getUnreconciled: () => ipcRenderer.invoke('get-unreconciled-transactions'),
-  reconcile: (transactionId, bankTxnId) => ipcRenderer.invoke('reconcile-transaction', transactionId, bankTxnId)
+  reconcile: (transactionId, bankTxnId) => ipcRenderer.invoke('reconcile-transaction', transactionId, bankTxnId),
+  
+  // Voice Reconciliation APIs
+  searchParty: (query) => ipcRenderer.invoke('voice-search-party', query),
+  searchTransactions: (criteria) => ipcRenderer.invoke('voice-search-transactions', criteria),
+  reconcileByAmount: (data) => ipcRenderer.invoke('voice-reconcile-by-amount', data),
+  createPayment: (data) => ipcRenderer.invoke('voice-create-payment', data),
+  getPartyBalance: (partyId) => ipcRenderer.invoke('voice-get-party-balance', partyId)
 };
 
 // Recommendations APIs
@@ -170,6 +177,19 @@ const subscription = {
   recordPayment: (paymentData) => ipcRenderer.invoke('subscription/record-payment', paymentData)
 };
 
+// Invoice Scanning APIs
+const invoiceScanning = {
+  getInvoices: (filters) => ipcRenderer.invoke('invoice:get-all', filters),
+  getInvoice: (id) => ipcRenderer.invoke('invoice:get', id),
+  saveInvoice: (data) => ipcRenderer.invoke('invoice:save', data),
+  updateInvoice: (id, data) => ipcRenderer.invoke('invoice:update', id, data),
+  deleteInvoice: (id) => ipcRenderer.invoke('invoice:delete', id),
+  importToTransactions: (id) => ipcRenderer.invoke('invoice:import', id),
+  checkDuplicate: (invoiceNumber, vendorName, invoiceDate, totalAmount) => 
+    ipcRenderer.invoke('invoice:check-duplicate', invoiceNumber, vendorName, invoiceDate, totalAmount),
+  getStatistics: (period) => ipcRenderer.invoke('invoice:get-statistics', period)
+};
+
 // Expose protected APIs to renderer
 contextBridge.exposeInMainWorld('api', {
   // Business Info
@@ -211,6 +231,9 @@ contextBridge.exposeInMainWorld('api', {
 
   // Subscription & Monetization
   subscription,
+
+  // Invoice Scanning
+  invoiceScanning,
 
   // Utility
   ping: () => 'pong'
