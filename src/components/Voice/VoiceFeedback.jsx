@@ -23,7 +23,7 @@ const VoiceFeedback = ({ parsedCommand, result, error, isProcessing }) => {
       compare_balance: 'Compare Balance',
       show_difference: 'Show Difference',
       mark_reconciled: 'Mark Reconciled',
-      un reconcile: 'Unreconcile',
+      un_reconcile: 'Unreconcile',
       match_transaction: 'Match Transaction',
       flag_transaction: 'Flag Transaction',
       unknown: 'Unknown Command'
