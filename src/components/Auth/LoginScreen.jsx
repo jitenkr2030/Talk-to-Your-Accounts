@@ -148,7 +148,10 @@ const LoginScreen = ({ onLogin, onSetupComplete }) => {
         setError(result.message || 'Failed to create user');
       }
     } catch (error) {
-      setError('Failed to create user');
+      // Show the actual error message for debugging
+      const errorMessage = error.message || error.toString() || 'Unknown error occurred';
+      console.error('Create user error details:', error);
+      setError(`Failed to create user: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
@@ -174,7 +177,10 @@ const LoginScreen = ({ onLogin, onSetupComplete }) => {
         setError(result.message || 'Setup failed');
       }
     } catch (error) {
-      setError('Setup failed');
+      // Show the actual error message for debugging
+      const errorMessage = error.message || error.toString() || 'Unknown error occurred';
+      console.error('Setup error details:', error);
+      setError(`Setup failed: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
