@@ -1,0 +1,23 @@
+# Git line ending configuration
+# Prevent git from modifying line endings on binary files
+
+# Treat these files as binary (don't convert line endings)
+*.exe binary
+*.dmg binary
+*.appimage binary
+*.deb binary
+*.zip binary
+*.7z binary
+*.tar.gz binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.eot binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
+
+# Ensure all other text files use LF line endings
+* text=auto eol=lf
