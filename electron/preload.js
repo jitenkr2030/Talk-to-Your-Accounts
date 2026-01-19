@@ -226,8 +226,8 @@ contextBridge.exposeInMainWorld('api', {
   // GST Reminders
   gstReminders,
   
-  // New Voice Module (Offline)
-  voiceModule,
+  // Voice Commands
+  voice,
 
   // Subscription & Monetization
   subscription,
