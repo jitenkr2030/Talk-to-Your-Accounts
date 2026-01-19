@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import React from 'react';
 import useAppStore from './stores/appStore';
 import { voiceManager } from './services/voiceManager';
 import { nlpEngine } from './core/nlpEngine';
@@ -7,6 +8,57 @@ import LandingPage from './pages/LandingPage';
 import DataManagementPage from './pages/DataManagementPage';
 import InvoiceScanner from './pages/InvoiceScanner';
 import VoiceReconciliation from './components/Voice/VoiceReconciliation';
+
+// Error Boundary Component
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('App Error Boundary caught error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-bold text-slate-800 mb-2">Application Error</h2>
+            <p className="text-slate-600 mb-4">Something went wrong. Please restart the application.</p>
+            <p className="text-sm text-slate-500 mb-4">
+              {this.state.error?.message || 'Unknown error'}
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-lg hover:shadow-lg transition-all"
+            >
+              Restart Application
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// Helper to check if API is available
+const isApiAvailable = () => {
+  return typeof window !== 'undefined' && 
+         window.api && 
+         typeof window.api.auth === 'object';
+};
 
 const App = () => {
   const [activeView, setActiveView] = useState('dashboard');
@@ -19,6 +71,7 @@ const App = () => {
   const [currentReport, setCurrentReport] = useState(null);
   const [language, setLanguage] = useState('english');
   const [audioLevel, setAudioLevel] = useState(0);
+  const [isApiReady, setIsApiReady] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   
@@ -68,10 +121,27 @@ const App = () => {
     addExpense
   } = useAppStore();
 
-  // Check authentication status on mount
+  // Check if API is available
   useEffect(() => {
-    checkAuthStatus();
+    const checkApi = () => {
+      if (isApiAvailable()) {
+        setIsApiReady(true);
+        console.log('API is ready');
+      } else {
+        console.log('API not ready, retrying...');
+        setTimeout(checkApi, 100);
+      }
+    };
+    
+    checkApi();
   }, []);
+
+  // Check authentication status on mount (only after API is ready)
+  useEffect(() => {
+    if (isApiReady) {
+      checkAuthStatus();
+    }
+  }, [isApiReady]);
 
   // Initialize app data only when authenticated
   useEffect(() => {
@@ -121,6 +191,23 @@ const App = () => {
     setMessages([]);
     setActiveView('dashboard');
   }, [logout]);
+
+  // If API is not ready yet, show loading screen
+  if (!isApiReady) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-20 h-20 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 animate-pulse">
+            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-2">Talk to Your Accounts</h1>
+          <p className="text-slate-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   // If not authenticated, show login screen
   if (!isAuthenticated) {
@@ -1193,4 +1280,4 @@ const App = () => {
   );
 };
 
-export default App;
+export default ErrorBoundary(App);
