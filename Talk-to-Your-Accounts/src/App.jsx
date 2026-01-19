@@ -1231,41 +1231,32 @@ const AppContent = () => {
       </main>
     </div>
   );
-};
+}
 
-// Error Boundary Component
+// Simple error boundary to prevent app crash
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
+  static getDerivedStateFromError() {
+    return { hasError: true };
   }
 
-  componentDidCatch(error, errorInfo) {
-    console.error('App Error Boundary caught error:', error, errorInfo);
+  componentDidCatch(error) {
+    console.error('App error:', error);
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-bold text-slate-800 mb-2">Application Error</h2>
-            <p className="text-slate-600 mb-4">Something went wrong. Please restart the application.</p>
-            <p className="text-sm text-slate-500 mb-4">
-              {this.state.error?.message || 'Unknown error'}
-            </p>
-            <button
+        <div className="flex min-h-screen bg-slate-900 items-center justify-center">
+          <div className="bg-white rounded-2xl p-8 text-center">
+            <h2 className="text-xl font-bold text-red-600 mb-4">Something went wrong</h2>
+            <button 
               onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-lg hover:shadow-lg transition-all"
+              className="px-4 py-2 bg-cyan-500 text-white rounded-lg"
             >
               Restart Application
             </button>
@@ -1277,13 +1268,13 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// App wrapper with Error Boundary
-function AppWithErrorBoundary() {
+// Wrap AppContent with ErrorBoundary
+function App() {
   return (
     <ErrorBoundary>
       <AppContent />
     </ErrorBoundary>
   );
-};
+}
 
-export default AppWithErrorBoundary;
+export default App;
