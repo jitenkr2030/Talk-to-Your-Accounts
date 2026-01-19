@@ -29,6 +29,7 @@ const App = () => {
     login,
     logout,
     checkAuthStatus,
+    set,
     isLoadingAuth,
     businessInfo,
     transactions,
