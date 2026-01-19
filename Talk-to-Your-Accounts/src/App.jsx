@@ -9,50 +9,6 @@ import DataManagementPage from './pages/DataManagementPage';
 import InvoiceScanner from './pages/InvoiceScanner';
 import VoiceReconciliation from './components/Voice/VoiceReconciliation';
 
-// Error Boundary Component
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error, errorInfo) {
-    console.error('App Error Boundary caught error:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-bold text-slate-800 mb-2">Application Error</h2>
-            <p className="text-slate-600 mb-4">Something went wrong. Please restart the application.</p>
-            <p className="text-sm text-slate-500 mb-4">
-              {this.state.error?.message || 'Unknown error'}
-            </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-lg hover:shadow-lg transition-all"
-            >
-              Restart Application
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
 // Helper to check if API is available
 const isApiAvailable = () => {
   return typeof window !== 'undefined' && 
@@ -71,7 +27,8 @@ const AppContent = () => {
   const [currentReport, setCurrentReport] = useState(null);
   const [language, setLanguage] = useState('english');
   const [audioLevel, setAudioLevel] = useState(0);
-  const [isApiReady, setIsApiReady] = useState(false);
+  const [isApiReady, setIsApiReady] = useState(null); // Start as null for hydration safety
+  const [isInitialCheckDone, setIsInitialCheckDone] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   
@@ -121,37 +78,39 @@ const AppContent = () => {
     addExpense
   } = useAppStore();
 
-  // Check if API is available
+  // One-time initialization on mount
   useEffect(() => {
     let attempts = 0;
-    const maxAttempts = 50; // 5 seconds max (50 * 100ms)
+    const maxAttempts = 100; // 10 seconds max (100 * 100ms)
     
     const checkApi = () => {
       attempts++;
       if (isApiAvailable()) {
         setIsApiReady(true);
+        setIsInitialCheckDone(true);
         console.log('API is ready after', attempts, 'attempts');
       } else if (attempts < maxAttempts) {
         setTimeout(checkApi, 100);
       } else {
-        // Fallback: show error and allow app to render anyway
+        // Fallback: allow app to render anyway
         console.warn('API check timed out, proceeding anyway');
-        setIsApiReady(true); // Proceed anyway to show the UI
+        setIsApiReady(false);
+        setIsInitialCheckDone(true);
       }
     };
     
     checkApi();
   }, []);
 
-  // Check authentication status on mount (only after API is ready)
+  // Check authentication status after API is ready
   useEffect(() => {
-    if (isApiReady) {
+    if (isApiReady === true && !isAuthenticated) {
       console.log('API ready, checking auth status...');
       checkAuthStatus().then((authenticated) => {
         console.log('Auth check complete, authenticated:', authenticated);
       });
     }
-  }, [isApiReady]);
+  }, [isApiReady, isAuthenticated]);
 
   // Initialize app data only when authenticated
   useEffect(() => {
@@ -208,9 +167,8 @@ const AppContent = () => {
     setActiveView('dashboard');
   }, [logout]);
 
-  // If API is not ready yet, show loading screen
-  if (!isApiReady) {
-    console.log('Showing loading screen');
+  // Show loading while checking API availability
+  if (isInitialCheckDone === false) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
         <div className="text-center">
@@ -220,7 +178,7 @@ const AppContent = () => {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-white mb-2">Talk to Your Accounts</h1>
-          <p className="text-slate-400">Loading...</p>
+          <p className="text-slate-400">Checking system...</p>
         </div>
       </div>
     );
@@ -1274,6 +1232,50 @@ const AppContent = () => {
     </div>
   );
 };
+
+// Error Boundary Component
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('App Error Boundary caught error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-bold text-slate-800 mb-2">Application Error</h2>
+            <p className="text-slate-600 mb-4">Something went wrong. Please restart the application.</p>
+            <p className="text-sm text-slate-500 mb-4">
+              {this.state.error?.message || 'Unknown error'}
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-lg hover:shadow-lg transition-all"
+            >
+              Restart Application
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // App wrapper with Error Boundary
 function AppWithErrorBoundary() {
