@@ -2077,7 +2077,7 @@ ipcMain.handle('create-user', (event, userData) => {
     throw new Error('Username must be at least 3 characters');
   }
   
-  if (!/^\\d{4}$/.test(pin)) {
+  if (!/^\d{4}$/.test(pin)) {
     throw new Error('PIN must be exactly 4 digits');
   }
   
