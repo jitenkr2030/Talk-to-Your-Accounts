@@ -14,29 +14,63 @@ const LoginScreen = ({ onLogin, onSetupComplete }) => {
   const [isFirstRun, setIsFirstRun] = useState(true);
   const [audioLevel, setAudioLevel] = useState(0);
 
+  // Check if this is first run
   useEffect(() => {
-    // Check if this is first run
+    const checkFirstRun = async () => {
+      try {
+        // Wait for API to be available
+        let attempts = 0;
+        const maxAttempts = 50;
+        
+        const waitForApi = () => {
+          attempts++;
+          if (window.api?.auth?.getUsers) {
+            checkFirstRunInner();
+          } else if (attempts < maxAttempts) {
+            setTimeout(waitForApi, 100);
+          } else {
+            // API not available, default to setup mode
+            console.warn('API not available during login screen init, defaulting to setup');
+            setIsFirstRun(true);
+            setShowSetup(true);
+          }
+        };
+        
+        const checkFirstRunInner = async () => {
+          try {
+            const result = await window.api.auth.getUsers() || { users: [] };
+            if (result.users && result.users.length === 0) {
+              setIsFirstRun(true);
+              setShowSetup(true);
+            } else {
+              setUsers(result.users || []);
+              setIsFirstRun(false);
+            }
+          } catch (error) {
+            console.error('Error checking first run:', error);
+            setIsFirstRun(true);
+            setShowSetup(true);
+          }
+        };
+        
+        waitForApi();
+      } catch (error) {
+        console.error('Error in checkFirstRun:', error);
+        setIsFirstRun(true);
+        setShowSetup(true);
+      }
+    };
+    
     checkFirstRun();
     
     // Listen for audio levels
-    voiceManager.onAudioLevelChange((level) => setAudioLevel(level));
-  }, []);
-
-  const checkFirstRun = async () => {
-    try {
-      const result = await window.api.auth?.getUsers?.() || { users: [] };
-      if (result.users && result.users.length === 0) {
-        setIsFirstRun(true);
-        setShowSetup(true);
-      } else {
-        setUsers(result.users || []);
+    const unsubscribe = voiceManager.onAudioLevelChange((level) => setAudioLevel(level));
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
       }
-    } catch (error) {
-      // Default to setup mode on error
-      setIsFirstRun(true);
-      setShowSetup(true);
-    }
-  };
+    };
+  }, []);
 
   const handleUsernameSubmit = (e) => {
     e.preventDefault();

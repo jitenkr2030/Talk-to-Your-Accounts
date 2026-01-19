@@ -146,13 +146,17 @@ const AppContent = () => {
   // Check authentication status on mount (only after API is ready)
   useEffect(() => {
     if (isApiReady) {
-      checkAuthStatus();
+      console.log('API ready, checking auth status...');
+      checkAuthStatus().then((authenticated) => {
+        console.log('Auth check complete, authenticated:', authenticated);
+      });
     }
   }, [isApiReady]);
 
   // Initialize app data only when authenticated
   useEffect(() => {
     if (isAuthenticated) {
+      console.log('User authenticated, initializing app...');
       const initApp = async () => {
         await Promise.all([
           loadBusinessInfo(),
@@ -176,7 +180,12 @@ const AppContent = () => {
 
   // Voice event listeners
   useEffect(() => {
-    voiceManager.onAudioLevelChange((level) => setAudioLevel(level));
+    const unsubscribe = voiceManager.onAudioLevelChange((level) => setAudioLevel(level));
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
   }, []);
 
   const handleLogin = useCallback(async (session) => {
@@ -201,6 +210,7 @@ const AppContent = () => {
 
   // If API is not ready yet, show loading screen
   if (!isApiReady) {
+    console.log('Showing loading screen');
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
         <div className="text-center">
@@ -218,35 +228,13 @@ const AppContent = () => {
 
   // If not authenticated, show login screen
   if (!isAuthenticated) {
+    console.log('Showing login screen, isAuthenticated:', isAuthenticated);
     return <LoginScreen onLogin={handleLogin} />;
   }
 
+  console.log('User authenticated, showing dashboard');
+
   // Initialize app
-  useEffect(() => {
-    const initApp = async () => {
-      await Promise.all([
-        loadBusinessInfo(),
-        loadTransactions({}),
-        loadParties(),
-        loadProducts(),
-        loadExpenses({}),
-        loadDashboardSummary('month'),
-        loadAlerts({}),
-        calculateHealthScore('month')
-      ]);
-    };
-    initApp();
-  }, []);
-
-  // Scroll to bottom of messages
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  // Voice event listeners
-  useEffect(() => {
-    voiceManager.onAudioLevelChange((level) => setAudioLevel(level));
-  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
