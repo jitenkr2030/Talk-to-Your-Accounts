@@ -102,7 +102,16 @@ const App = () => {
   }, []);
 
   const handleLogin = useCallback(async (session) => {
-    // App initialization happens in the useEffect above due to isAuthenticated change
+    // Update authentication state with the session
+    set({
+      isAuthenticated: true,
+      currentUser: {
+        id: session.userId || session.id,
+        username: session.username,
+        role: session.role
+      },
+      sessionToken: session.token
+    });
     console.log('Login successful:', session);
   }, []);
 
