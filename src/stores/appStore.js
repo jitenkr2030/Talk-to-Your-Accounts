@@ -1,5 +1,26 @@
 import { create } from 'zustand';
 
+// Helper to safely check if API is available
+const isApiAvailable = () => {
+  return typeof window !== 'undefined' && 
+         window.api && 
+         typeof window.api.auth === 'object';
+};
+
+// Safe API call wrapper
+const safeApiCall = async (apiCall, fallback = null) => {
+  if (!isApiAvailable()) {
+    console.warn('API not available, skipping call');
+    return fallback;
+  }
+  try {
+    return await apiCall();
+  } catch (error) {
+    console.error('API call failed:', error);
+    return fallback;
+  }
+};
+
 // Main Application Store with Comprehensive State Management
 const useAppStore = create((set, get) => ({
   // ==================== LOADING & ERROR STATES ====================
@@ -31,8 +52,11 @@ const useAppStore = create((set, get) => ({
   login: async (username, pin) => {
     get().setLoading('auth', true);
     try {
-      const result = await window.api.auth.authenticate(username, pin);
-      if (result.success) {
+      const result = await safeApiCall(
+        () => window.api.auth.authenticate(username, pin),
+        { success: false, message: 'API not available' }
+      );
+      if (result && result.success) {
         set({
           isAuthenticated: true,
           currentUser: {
@@ -48,8 +72,8 @@ const useAppStore = create((set, get) => ({
         localStorage.setItem('currentUser', JSON.stringify(result.session));
         return { success: true };
       } else {
-        set({ error: result.message });
-        return { success: false, error: result.message, errorCode: result.error };
+        set({ error: result?.message || 'Authentication failed' });
+        return { success: false, error: result?.message || 'Authentication failed', errorCode: result?.error };
       }
     } catch (error) {
       set({ error: 'Authentication failed. Please try again.' });
@@ -62,7 +86,7 @@ const useAppStore = create((set, get) => ({
   logout: async () => {
     try {
       const token = get().sessionToken;
-      if (token) {
+      if (token && isApiAvailable()) {
         await window.api.auth.logout(token);
       }
     } catch (error) {
@@ -106,43 +130,31 @@ const useAppStore = create((set, get) => ({
   },
   
   loadUsers: async () => {
-    try {
-      const result = await window.api.auth.getUsers();
-      return result.users || [];
-    } catch (error) {
-      console.error('Failed to load users:', error);
-      return [];
-    }
+    return await safeApiCall(
+      () => window.api.auth.getUsers(),
+      { users: [] }
+    )?.users || [];
   },
   
   createUser: async (userData) => {
-    try {
-      const result = await window.api.auth.createUser(userData);
-      return { success: true, user: result.user };
-    } catch (error) {
-      set({ error: error.message });
-      return { success: false, error: error.message };
-    }
+    return await safeApiCall(
+      () => window.api.auth.createUser(userData),
+      { success: false, error: 'API not available' }
+    );
   },
   
   deleteUser: async (userId) => {
-    try {
-      await window.api.auth.deleteUser(userId);
-      return { success: true };
-    } catch (error) {
-      set({ error: error.message });
-      return { success: false, error: error.message };
-    }
+    return await safeApiCall(
+      () => window.api.auth.deleteUser(userId),
+      { success: false, error: 'API not available' }
+    );
   },
   
   updateUserPin: async (userId, oldPin, newPin) => {
-    try {
-      const result = await window.api.auth.updateUserPin(userId, oldPin, newPin);
-      return result;
-    } catch (error) {
-      set({ error: error.message });
-      return { success: false, error: error.message };
-    }
+    return await safeApiCall(
+      () => window.api.auth.updateUserPin(userId, oldPin, newPin),
+      { success: false, error: 'API not available' }
+    );
   },
 
   // ==================== BUSINESS INFO ====================
@@ -150,52 +162,48 @@ const useAppStore = create((set, get) => ({
   settings: {},
   
   loadBusinessInfo: async () => {
-    try {
-      const info = await window.api.businessInfo.get();
-      set({ businessInfo: info });
-      return info;
-    } catch (error) {
-      console.error('Failed to load business info:', error);
-      throw error;
-    }
+    const info = await safeApiCall(
+      () => window.api.businessInfo.get(),
+      {}
+    );
+    set({ businessInfo: info || {} });
+    return info || {};
   },
   
   saveBusinessInfo: async (data) => {
-    try {
-      await window.api.businessInfo.set(data);
+    const result = await safeApiCall(
+      () => window.api.businessInfo.set(data),
+      false
+    );
+    if (result) {
       set((state) => ({
         businessInfo: { ...state.businessInfo, ...data }
       }));
-      return true;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
     }
+    return result;
   },
 
   // ==================== SETTINGS ====================
   loadSettings: async () => {
-    try {
-      const settings = await window.api.settings.get();
-      set({ settings });
-      return settings;
-    } catch (error) {
-      console.error('Failed to load settings:', error);
-      throw error;
-    }
+    const settings = await safeApiCall(
+      () => window.api.settings.get(),
+      {}
+    );
+    set({ settings: settings || {} });
+    return settings || {};
   },
   
   saveSettings: async (newSettings) => {
-    try {
-      await window.api.settings.save(newSettings);
+    const result = await safeApiCall(
+      () => window.api.settings.save(newSettings),
+      false
+    );
+    if (result) {
       set((state) => ({
         settings: { ...state.settings, ...newSettings }
       }));
-      return true;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
     }
+    return result;
   },
 
   // ==================== PARTIES/LEDGERS ====================
@@ -205,71 +213,70 @@ const useAppStore = create((set, get) => ({
   loadParties: async (filters = {}) => {
     get().setLoading('parties', true);
     try {
-      const parties = await window.api.parties.get(filters);
-      set({ parties, selectedParty: null });
-      return parties;
+      const parties = await safeApiCall(
+        () => window.api.parties.get(filters),
+        []
+      );
+      set({ parties: parties || [], selectedParty: null });
+      return parties || [];
     } catch (error) {
       set({ error: error.message });
-      throw error;
+      return [];
     } finally {
       get().setLoading('parties', false);
     }
   },
   
   loadPartyById: async (id) => {
-    try {
-      const party = await window.api.parties.getById(id);
-      set({ selectedParty: party });
-      return party;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
-    }
+    const party = await safeApiCall(
+      () => window.api.parties.getById(id),
+      null
+    );
+    set({ selectedParty: party });
+    return party;
   },
   
   getPartyBalance: async (id) => {
-    try {
-      return await window.api.parties.getBalance(id);
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
-    }
+    return await safeApiCall(
+      () => window.api.parties.getBalance(id),
+      null
+    );
   },
   
   addParty: async (party) => {
-    try {
-      const id = await window.api.parties.add(party);
+    const id = await safeApiCall(
+      () => window.api.parties.add(party),
+      null
+    );
+    if (id) {
       await get().loadParties({});
-      return id;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
     }
+    return id;
   },
   
   updateParty: async (id, party) => {
-    try {
-      await window.api.parties.update(id, party);
+    const result = await safeApiCall(
+      () => window.api.parties.update(id, party),
+      false
+    );
+    if (result) {
       await get().loadParties({});
       if (get().selectedParty?.id === id) {
         await get().loadPartyById(id);
       }
-      return true;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
     }
+    return result;
   },
   
   deleteParty: async (id) => {
-    try {
-      await window.api.parties.delete(id);
+    const result = await safeApiCall(
+      () => window.api.parties.delete(id),
+      false
+    );
+    if (result) {
       await get().loadParties({});
-      return true;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
     }
+    return result;
   },
 
   // ==================== PRODUCTS/INVENTORY ====================
@@ -279,62 +286,63 @@ const useAppStore = create((set, get) => ({
   loadProducts: async (filters = {}) => {
     get().setLoading('products', true);
     try {
-      const products = await window.api.products.get(filters);
-      set({ products, selectedProduct: null });
-      return products;
+      const products = await safeApiCall(
+        () => window.api.products.get(filters),
+        []
+      );
+      set({ products: products || [], selectedProduct: null });
+      return products || [];
     } catch (error) {
       set({ error: error.message });
-      throw error;
+      return [];
     } finally {
       get().setLoading('products', false);
     }
   },
   
   loadProductById: async (id) => {
-    try {
-      const product = await window.api.products.getById(id);
-      set({ selectedProduct: product });
-      return product;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
-    }
+    const product = await safeApiCall(
+      () => window.api.products.getById(id),
+      null
+    );
+    set({ selectedProduct: product });
+    return product;
   },
   
   addProduct: async (product) => {
-    try {
-      const id = await window.api.products.add(product);
+    const id = await safeApiCall(
+      () => window.api.products.add(product),
+      null
+    );
+    if (id) {
       await get().loadProducts({});
-      return id;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
     }
+    return id;
   },
   
   updateProduct: async (id, product) => {
-    try {
-      await window.api.products.update(id, product);
+    const result = await safeApiCall(
+      () => window.api.products.update(id, product),
+      false
+    );
+    if (result) {
       await get().loadProducts({});
       if (get().selectedProduct?.id === id) {
         await get().loadProductById(id);
       }
-      return true;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
     }
+    return result;
   },
   
   deleteProduct: async (id) => {
-    try {
-      await window.api.products.delete(id);
+    const result = await safeApiCall(
+      () => window.api.products.delete(id),
+      false
+    );
+    if (result) {
       await get().loadProducts({});
-      return true;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
     }
+    return result;
   },
 
   // ==================== TRANSACTIONS ====================
@@ -344,123 +352,120 @@ const useAppStore = create((set, get) => ({
   loadTransactions: async (filters = {}) => {
     get().setLoading('transactions', true);
     try {
-      const transactions = await window.api.transactions.get(filters);
-      set({ transactions, selectedTransaction: null });
-      return transactions;
+      const transactions = await safeApiCall(
+        () => window.api.transactions.get(filters),
+        []
+      );
+      set({ transactions: transactions || [], selectedTransaction: null });
+      return transactions || [];
     } catch (error) {
       set({ error: error.message });
-      throw error;
+      return [];
     } finally {
       get().setLoading('transactions', false);
     }
   },
   
   loadTransactionById: async (id) => {
-    try {
-      const transaction = await window.api.transactions.getById(id);
-      set({ selectedTransaction: transaction });
-      return transaction;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
-    }
+    const transaction = await safeApiCall(
+      () => window.api.transactions.getById(id),
+      null
+    );
+    set({ selectedTransaction: transaction });
+    return transaction;
   },
   
   addTransaction: async (transaction) => {
-    try {
-      const result = await window.api.transactions.add(transaction);
+    const result = await safeApiCall(
+      () => window.api.transactions.add(transaction),
+      null
+    );
+    if (result) {
       await get().loadTransactions({});
-      return result;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
     }
+    return result;
   },
   
   updateTransaction: async (id, transaction) => {
-    try {
-      await window.api.transactions.update(id, transaction);
+    const result = await safeApiCall(
+      () => window.api.transactions.update(id, transaction),
+      false
+    );
+    if (result) {
       await get().loadTransactions({});
       if (get().selectedTransaction?.id === id) {
         await get().loadTransactionById(id);
       }
-      return true;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
     }
+    return result;
   },
   
   cancelTransaction: async (id, reason) => {
-    try {
-      await window.api.transactions.cancel(id, reason);
+    const result = await safeApiCall(
+      () => window.api.transactions.cancel(id, reason),
+      false
+    );
+    if (result) {
       await get().loadTransactions({});
-      return true;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
     }
+    return result;
   },
 
   // ==================== PAYMENTS ====================
   payments: [],
   
   loadPayments: async (filters = {}) => {
-    try {
-      const payments = await window.api.payments.get(filters);
-      set({ payments });
-      return payments;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
-    }
+    const payments = await safeApiCall(
+      () => window.api.payments.get(filters),
+      []
+    );
+    set({ payments: payments || [] });
+    return payments || [];
   },
   
   addPayment: async (payment) => {
-    try {
-      const id = await window.api.payments.add(payment);
+    const id = await safeApiCall(
+      () => window.api.payments.add(payment),
+      null
+    );
+    if (id) {
       await get().loadPayments({});
-      return id;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
     }
+    return id;
   },
 
   // ==================== EXPENSES ====================
   expenses: [],
   
   loadExpenses: async (filters = {}) => {
-    try {
-      const expenses = await window.api.expenses.get(filters);
-      set({ expenses });
-      return expenses;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
-    }
+    const expenses = await safeApiCall(
+      () => window.api.expenses.get(filters),
+      []
+    );
+    set({ expenses: expenses || [] });
+    return expenses || [];
   },
   
   addExpense: async (expense) => {
-    try {
-      const id = await window.api.expenses.add(expense);
+    const id = await safeApiCall(
+      () => window.api.expenses.add(expense),
+      null
+    );
+    if (id) {
       await get().loadExpenses({});
-      return id;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
     }
+    return id;
   },
   
   deleteExpense: async (id) => {
-    try {
-      await window.api.expenses.delete(id);
+    const result = await safeApiCall(
+      () => window.api.expenses.delete(id),
+      false
+    );
+    if (result) {
       await get().loadExpenses({});
-      return true;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
     }
+    return result;
   },
 
   // ==================== REPORTS & DASHBOARD ====================
