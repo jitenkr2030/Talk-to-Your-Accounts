@@ -60,7 +60,7 @@ const isApiAvailable = () => {
          typeof window.api.auth === 'object';
 };
 
-const App = () => {
+const AppContent = () => {
   const [activeView, setActiveView] = useState('dashboard');
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -1277,14 +1277,13 @@ const App = () => {
     }
   };
 
+// App wrapper with Error Boundary
+function AppWithErrorBoundary() {
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      {renderSidebar()}
-      <main className="flex-1 overflow-auto">
-        {renderContent()}
-      </main>
-    </div>
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
   );
 };
 
-export default ErrorBoundary(App);
+export default AppWithErrorBoundary;
