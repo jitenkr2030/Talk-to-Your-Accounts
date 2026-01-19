@@ -123,13 +123,20 @@ const App = () => {
 
   // Check if API is available
   useEffect(() => {
+    let attempts = 0;
+    const maxAttempts = 50; // 5 seconds max (50 * 100ms)
+    
     const checkApi = () => {
+      attempts++;
       if (isApiAvailable()) {
         setIsApiReady(true);
-        console.log('API is ready');
-      } else {
-        console.log('API not ready, retrying...');
+        console.log('API is ready after', attempts, 'attempts');
+      } else if (attempts < maxAttempts) {
         setTimeout(checkApi, 100);
+      } else {
+        // Fallback: show error and allow app to render anyway
+        console.warn('API check timed out, proceeding anyway');
+        setIsApiReady(true); // Proceed anyway to show the UI
       }
     };
     

@@ -482,7 +482,10 @@ const useAppStore = create((set, get) => ({
   loadDashboardSummary: async (period = 'month') => {
     get().setLoading('reports', true);
     try {
-      const summary = await window.api.reports.getDashboardSummary(period);
+      const summary = await safeApiCall(
+        () => window.api.reports.getDashboardSummary(period),
+        null
+      );
       set({ dashboardSummary: summary });
       return summary;
     } catch (error) {
@@ -495,7 +498,10 @@ const useAppStore = create((set, get) => ({
   
   loadSalesReport: async (filters = {}) => {
     try {
-      const report = await window.api.reports.getSalesReport(filters);
+      const report = await safeApiCall(
+        () => window.api.reports.getSalesReport(filters),
+        null
+      );
       set({ salesReport: report });
       return report;
     } catch (error) {
@@ -506,7 +512,10 @@ const useAppStore = create((set, get) => ({
   
   loadGSTReport: async (period) => {
     try {
-      const report = await window.api.reports.getGSTReport(period);
+      const report = await safeApiCall(
+        () => window.api.reports.getGSTReport(period),
+        null
+      );
       set({ gstReport: report });
       return report;
     } catch (error) {
@@ -517,7 +526,10 @@ const useAppStore = create((set, get) => ({
   
   loadProfitLoss: async (filters = {}) => {
     try {
-      const report = await window.api.reports.getProfitLoss(filters);
+      const report = await safeApiCall(
+        () => window.api.reports.getProfitLoss(filters),
+        null
+      );
       set({ profitLoss: report });
       return report;
     } catch (error) {
@@ -528,7 +540,10 @@ const useAppStore = create((set, get) => ({
   
   loadBalanceSheet: async (asOnDate) => {
     try {
-      const report = await window.api.reports.getBalanceSheet(asOnDate);
+      const report = await safeApiCall(
+        () => window.api.reports.getBalanceSheet(asOnDate),
+        null
+      );
       set({ balanceSheet: report });
       return report;
     } catch (error) {
@@ -539,7 +554,10 @@ const useAppStore = create((set, get) => ({
   
   loadOutstandingAging: async () => {
     try {
-      const report = await window.api.reports.getOutstandingAging();
+      const report = await safeApiCall(
+        () => window.api.reports.getOutstandingAging(),
+        null
+      );
       set({ outstandingAging: report });
       return report;
     } catch (error) {
@@ -550,7 +568,10 @@ const useAppStore = create((set, get) => ({
   
   loadExpenseSummary: async (filters = {}) => {
     try {
-      const report = await window.api.reports.getExpenseSummary(filters);
+      const report = await safeApiCall(
+        () => window.api.reports.getExpenseSummary(filters),
+        null
+      );
       set({ expenseSummary: report });
       return report;
     } catch (error) {
@@ -561,7 +582,10 @@ const useAppStore = create((set, get) => ({
   
   loadCashFlow: async (filters = {}) => {
     try {
-      const report = await window.api.reports.getCashFlow(filters);
+      const report = await safeApiCall(
+        () => window.api.reports.getCashFlow(filters),
+        null
+      );
       set({ cashFlow: report });
       return report;
     } catch (error) {
@@ -578,9 +602,12 @@ const useAppStore = create((set, get) => ({
   loadAlerts: async (filters = {}) => {
     get().setLoading('alerts', true);
     try {
-      const alerts = await window.api.alerts.get(filters);
-      set({ alerts });
-      return alerts;
+      const alerts = await safeApiCall(
+        () => window.api.alerts.get(filters),
+        []
+      );
+      set({ alerts: alerts || [] });
+      return alerts || [];
     } catch (error) {
       set({ error: error.message });
       throw error;
@@ -591,10 +618,13 @@ const useAppStore = create((set, get) => ({
   
   loadAlertCount: async () => {
     try {
-      const count = await window.api.alerts.getCount();
+      const count = await safeApiCall(
+        () => window.api.alerts.getCount(),
+        { unread: 0, bySeverity: [] }
+      );
       set({ 
-        unreadAlertCount: count.unread,
-        alertCountsBySeverity: count.bySeverity
+        unreadAlertCount: count?.unread || 0,
+        alertCountsBySeverity: count?.bySeverity || []
       });
       return count;
     } catch (error) {
@@ -605,7 +635,10 @@ const useAppStore = create((set, get) => ({
   
   markAlertRead: async (id) => {
     try {
-      await window.api.alerts.markRead(id);
+      await safeApiCall(
+        () => window.api.alerts.markRead(id),
+        false
+      );
       await get().loadAlerts({});
       await get().loadAlertCount();
       return true;
@@ -617,7 +650,10 @@ const useAppStore = create((set, get) => ({
   
   dismissAlert: async (id) => {
     try {
-      await window.api.alerts.dismiss(id);
+      await safeApiCall(
+        () => window.api.alerts.dismiss(id),
+        false
+      );
       await get().loadAlerts({});
       await get().loadAlertCount();
       return true;
@@ -629,7 +665,10 @@ const useAppStore = create((set, get) => ({
   
   clearAllAlerts: async () => {
     try {
-      await window.api.alerts.clearAll();
+      await safeApiCall(
+        () => window.api.alerts.clearAll(),
+        false
+      );
       await get().loadAlerts({});
       await get().loadAlertCount();
       return true;
@@ -644,7 +683,10 @@ const useAppStore = create((set, get) => ({
   
   calculateHealthScore: async (period = 'month') => {
     try {
-      const healthScore = await window.api.health.calculate(period);
+      const healthScore = await safeApiCall(
+        () => window.api.health.calculate(period),
+        null
+      );
       set({ healthScore });
       return healthScore;
     } catch (error) {
@@ -655,9 +697,12 @@ const useAppStore = create((set, get) => ({
   
   loadHealthHistory: async () => {
     try {
-      const history = await window.api.health.getHistory();
-      set({ healthHistory: history });
-      return history;
+      const history = await safeApiCall(
+        () => window.api.health.getHistory(),
+        []
+      );
+      set({ healthHistory: history || [] });
+      return history || [];
     } catch (error) {
       set({ error: error.message });
       throw error;
@@ -671,7 +716,10 @@ const useAppStore = create((set, get) => ({
   
   loadCADashboard: async () => {
     try {
-      const dashboard = await window.api.caMode.getDashboard();
+      const dashboard = await safeApiCall(
+        () => window.api.caMode.getDashboard(),
+        null
+      );
       set({ caDashboard: dashboard });
       return dashboard;
     } catch (error) {
@@ -682,9 +730,12 @@ const useAppStore = create((set, get) => ({
   
   loadAuditTrail: async (filters = {}) => {
     try {
-      const trail = await window.api.caMode.getAuditTrail(filters);
-      set({ auditTrail: trail });
-      return trail;
+      const trail = await safeApiCall(
+        () => window.api.caMode.getAuditTrail(filters),
+        []
+      );
+      set({ auditTrail: trail || [] });
+      return trail || [];
     } catch (error) {
       set({ error: error.message });
       throw error;
@@ -696,7 +747,10 @@ const useAppStore = create((set, get) => ({
   // ==================== DATA MANAGEMENT ====================
   exportData: async () => {
     try {
-      const data = await window.api.dataManagement.export();
+      const data = await safeApiCall(
+        () => window.api.dataManagement.export(),
+        null
+      );
       return data;
     } catch (error) {
       set({ error: error.message });
@@ -706,7 +760,10 @@ const useAppStore = create((set, get) => ({
   
   importData: async (data) => {
     try {
-      const result = await window.api.dataManagement.import(data);
+      const result = await safeApiCall(
+        () => window.api.dataManagement.import(data),
+        { success: false }
+      );
       await get().loadAllData();
       return result;
     } catch (error) {
@@ -717,7 +774,10 @@ const useAppStore = create((set, get) => ({
   
   backupDatabase: async () => {
     try {
-      const result = await window.api.dataManagement.backup();
+      const result = await safeApiCall(
+        () => window.api.dataManagement.backup(),
+        null
+      );
       return result;
     } catch (error) {
       set({ error: error.message });
@@ -727,7 +787,10 @@ const useAppStore = create((set, get) => ({
   
   restoreDatabase: async (backupPath) => {
     try {
-      await window.api.dataManagement.restore(backupPath);
+      await safeApiCall(
+        () => window.api.dataManagement.restore(backupPath),
+        false
+      );
       await get().loadAllData();
       return true;
     } catch (error) {
@@ -887,11 +950,14 @@ const useAppStore = create((set, get) => ({
   loadPlans: async () => {
     get().setLoading('subscription', true);
     try {
-      const plans = await window.api.subscription.getPlans();
+      const plans = await safeApiCall(
+        () => window.api.subscription.getPlans(),
+        []
+      );
       set((state) => ({
-        subscription: { ...state.subscription, plans }
+        subscription: { ...state.subscription, plans: plans || [] }
       }));
-      return plans;
+      return plans || [];
     } catch (error) {
       set({ error: error.message });
       throw error;
@@ -903,9 +969,18 @@ const useAppStore = create((set, get) => ({
   loadSubscription: async (userId) => {
     get().setLoading('subscription', true);
     try {
-      const subscription = await window.api.subscription.getSubscription(userId);
-      const usage = await window.api.subscription.getUsage(userId);
-      const limits = await window.api.subscription.checkLimits(userId);
+      const subscription = await safeApiCall(
+        () => window.api.subscription.getSubscription(userId),
+        null
+      );
+      const usage = await safeApiCall(
+        () => window.api.subscription.getUsage(userId),
+        null
+      );
+      const limits = await safeApiCall(
+        () => window.api.subscription.checkLimits(userId),
+        null
+      );
       set((state) => ({
         subscription: {
           ...state.subscription,
@@ -925,7 +1000,10 @@ const useAppStore = create((set, get) => ({
 
   createSubscription: async (userId, planId, billingCycle) => {
     try {
-      const subscription = await window.api.subscription.create(userId, planId, billingCycle);
+      const subscription = await safeApiCall(
+        () => window.api.subscription.create(userId, planId, billingCycle),
+        null
+      );
       await get().loadSubscription(userId);
       return subscription;
     } catch (error) {
@@ -936,7 +1014,10 @@ const useAppStore = create((set, get) => ({
 
   checkUsageLimits: async (userId) => {
     try {
-      const limits = await window.api.subscription.checkLimits(userId);
+      const limits = await safeApiCall(
+        () => window.api.subscription.checkLimits(userId),
+        null
+      );
       set((state) => ({
         subscription: { ...state.subscription, usageLimits: limits }
       }));
@@ -949,7 +1030,10 @@ const useAppStore = create((set, get) => ({
 
   incrementUsage: async (userId, type) => {
     try {
-      await window.api.subscription.incrementUsage(userId, type);
+      await safeApiCall(
+        () => window.api.subscription.incrementUsage(userId, type),
+        false
+      );
       await get().loadSubscription(userId);
     } catch (error) {
       console.error('Failed to increment usage:', error);
