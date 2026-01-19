@@ -59,5 +59,29 @@
     "tesseract.js": "^5.0.4",
     "xlsx": "^0.18.5",
     "zustand": "^4.4.7"
+  },
+  "build": {
+    "appId": "com.talk-to-your-accounts.app",
+    "productName": "Talk to Your Accounts",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "public/icon.png"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "public/icon.png"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "public/icon.png"
+    }
   }
 }
