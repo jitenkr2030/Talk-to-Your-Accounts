@@ -287,9 +287,10 @@ export function VoiceProvider({ children }) {
         
         dispatch({ type: ACTION_TYPES.SET_INITIALIZED, payload: true });
       } catch (error) {
-        console.error('Voice initialization error:', error);
-        dispatch({ type: ACTION_TYPES.SET_ERROR, payload: error.message });
-        dispatch({ type: ACTION_TYPES.SET_INITIALIZED, payload: false });
+        // Gracefully handle initialization errors - voice is optional
+        console.warn('Voice initialization warning:', error.message);
+        dispatch({ type: ACTION_TYPES.SET_ERROR, payload: null }); // Don't set error for optional features
+        dispatch({ type: ACTION_TYPES.SET_INITIALIZED, payload: true }); // Mark as initialized anyway
       }
     };
     
