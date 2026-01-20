@@ -174,7 +174,8 @@ const subscription = {
   checkLimits: (userId) => ipcRenderer.invoke('subscription/check-limits', userId),
   incrementUsage: (userId, type) => ipcRenderer.invoke('subscription/increment-usage', userId, type),
   getPaymentHistory: (userId) => ipcRenderer.invoke('subscription/get-payment-history', userId),
-  recordPayment: (paymentData) => ipcRenderer.invoke('subscription/record-payment', paymentData)
+  recordPayment: (paymentData) => ipcRenderer.invoke('subscription/record-payment', paymentData),
+  diagnose: () => ipcRenderer.invoke('subscription/diagnose')
 };
 
 // Invoice Scanning APIs

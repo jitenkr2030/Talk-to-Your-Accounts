@@ -46,6 +46,11 @@ const subscriptionService = {
     return await window.api.subscription.getPaymentHistory(userId);
   },
 
+  // Diagnostic function to check subscription system health
+  async diagnose() {
+    return await window.api.subscription.diagnose();
+  },
+
   // Format currency
   formatCurrency(amount, currency = 'INR') {
     return new Intl.NumberFormat('en-IN', {

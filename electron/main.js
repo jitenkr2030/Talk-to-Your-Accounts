@@ -3801,7 +3801,48 @@ ipcMain.handle('search-audit-logs', (event, query, filters = {}) => {
 
 // ==================== SUBSCRIPTION MANAGEMENT ====================
 ipcMain.handle('subscription/get-plans', () => {
-  return dbManager.getAllPlans();
+  // First ensure plans exist by calling getAllPlans (which seeds if needed)
+  const plans = dbManager.getAllPlans();
+  
+  // If no plans exist, seed them directly here
+  if (!plans || plans.length === 0) {
+    const defaultPlans = [
+      { plan_id: 'free', name: 'Free', description: 'Perfect for getting started', monthly_price: 0, yearly_price: 0 },
+      { plan_id: 'starter', name: 'Starter', description: 'Ideal for small businesses', monthly_price: 499, yearly_price: 4990 },
+      { plan_id: 'professional', name: 'Professional', description: 'Complete solution', monthly_price: 1499, yearly_price: 14990 }
+    ];
+    
+    const stmt = db.prepare(`
+      INSERT OR IGNORE INTO subscription_plans 
+      (plan_id, name, description, monthly_price, yearly_price, max_transactions, max_parties, max_products, features, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    `);
+    
+    for (const plan of defaultPlans) {
+      const features = plan.plan_id === 'free' 
+        ? JSON.stringify(['50 transactions', '10 parties', '20 products', 'Basic reports'])
+        : plan.plan_id === 'starter'
+        ? JSON.stringify(['500 transactions', '50 parties', '100 products', 'All reports', 'Voice commands'])
+        : JSON.stringify(['5000 transactions', '500 parties', '1000 products', 'All features', 'API access']);
+        
+      stmt.run(
+        plan.plan_id, 
+        plan.name, 
+        plan.description, 
+        plan.monthly_price, 
+        plan.yearly_price,
+        plan.plan_id === 'free' ? 50 : plan.plan_id === 'starter' ? 500 : 5000,
+        plan.plan_id === 'free' ? 10 : plan.plan_id === 'starter' ? 50 : 500,
+        plan.plan_id === 'free' ? 20 : plan.plan_id === 'starter' ? 100 : 1000,
+        features
+      );
+    }
+    
+    // Return the newly created plans
+    return dbManager.getAllPlans();
+  }
+  
+  return plans;
 });
 
 ipcMain.handle('subscription/get-plan', (event, planId) => {
@@ -3838,6 +3879,50 @@ ipcMain.handle('subscription/get-payment-history', (event, userId) => {
 
 ipcMain.handle('subscription/record-payment', (event, paymentData) => {
   return dbManager.recordPayment(paymentData);
+});
+
+// Diagnostic: Check and repair subscription tables
+ipcMain.handle('subscription/diagnose', () => {
+  try {
+    // Check if subscription_plans table exists
+    const tablesExist = db.prepare(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name='subscription_plans'
+    `).get();
+
+    if (!tablesExist) {
+      return {
+        success: false,
+        issue: 'subscription_plans_table_missing',
+        message: 'Subscription tables do not exist. Please restart the application to initialize them.'
+      };
+    }
+
+    // Check if plans exist
+    const plansCount = db.prepare('SELECT COUNT(*) as count FROM subscription_plans').get();
+    if (plansCount.count === 0) {
+      return {
+        success: false,
+        issue: 'no_plans_exist',
+        message: 'No subscription plans found in database.'
+      };
+    }
+
+    // Return current plans
+    const plans = db.prepare('SELECT * FROM subscription_plans WHERE is_active = 1').all();
+
+    return {
+      success: true,
+      plans_count: plansCount.count,
+      plans: plans
+    };
+  } catch (error) {
+    return {
+      success: false,
+      issue: 'error',
+      message: error.message
+    };
+  }
 });
 
 // ==================== INVOICE SCANNING ====================
