@@ -4165,6 +4165,11 @@ ipcMain.handle('invoice:get-statistics', (event, period) => {
 app.whenReady().then(() => {
   initializeDatabase();
   
+  // Initialize dbManager for subscription and advanced database features
+  // This must be called AFTER initializeDatabase() to ensure tables exist
+  dbManager.initialize(app.getPath('userData'));
+  console.log('dbManager initialized for subscription features');
+  
   // Initialize Invoice Scanning Database
   invoiceScanningDB.initialize(app.getPath('userData'));
   console.log('Invoice Scanning DB initialized at:', path.join(app.getPath('userData'), 'invoice_scanning.db'));
@@ -4193,8 +4198,8 @@ app.on('window-all-closed', () => {
 // ==================== VOICE MODULE INITIALIZATION ====================
 function initializeVoiceModule() {
   try {
-    // Try to initialize the voice handlers
-    const { setupVoiceHandlers } = require('../../src/main/services/voice/VoiceIPCHandlers.js');
+    // Load voice handlers from electron/voice directory (included in build)
+    const { setupVoiceHandlers } = require('./voice/VoiceIPCHandlers.js');
     
     // Initialize with main window reference
     setupVoiceHandlers(mainWindow);
