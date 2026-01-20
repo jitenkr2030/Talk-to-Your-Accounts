@@ -415,8 +415,9 @@ function setupVoiceHandlers(mainWindow) {
 async function executeVoiceCommand(command) {
   const { intent, entities, rawText } = command;
 
-  // Import database handlers dynamically
-  const dbHandlers = require('./electron/main.js');
+  // Note: database access is through global.db which is set in main.js
+  // The require below was causing issues and is no longer needed
+  // const dbHandlers = require('../../../electron/main.js');
   const db = global.db; // Access the database instance
 
   switch (intent) {
