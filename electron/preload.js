@@ -131,7 +131,24 @@ const reconciliation = {
   searchTransactions: (criteria) => ipcRenderer.invoke('voice-search-transactions', criteria),
   reconcileByAmount: (data) => ipcRenderer.invoke('voice-reconcile-by-amount', data),
   createPayment: (data) => ipcRenderer.invoke('voice-create-payment', data),
-  getPartyBalance: (partyId) => ipcRenderer.invoke('voice-get-party-balance', partyId)
+  getPartyBalance: (partyId) => ipcRenderer.invoke('voice-get-party-balance', partyId),
+  
+  // Additional Voice Reconciliation Handlers (matching main.js handlers)
+  getReconciliationUnreconciled: (filters) => ipcRenderer.invoke('reconciliation:get-unreconciled', filters),
+  getReconciliationReconciled: (filters) => ipcRenderer.invoke('reconciliation:get-reconciled', filters),
+  reconcileSingle: (data) => ipcRenderer.invoke('reconciliation:reconcile-single', data),
+  reconcileAll: (data) => ipcRenderer.invoke('reconciliation:reconcile-all', data),
+  reconcileByParty: (data) => ipcRenderer.invoke('reconciliation:reconcile-by-party', data),
+  reconcileByDate: (data) => ipcRenderer.invoke('reconciliation:reconcile-by-date', data),
+  markReconciled: (data) => ipcRenderer.invoke('reconciliation:mark-reconciled', data),
+  unreconcile: (data) => ipcRenderer.invoke('reconciliation:unreconcile', data),
+  getReconciliationSummary: (data) => ipcRenderer.invoke('reconciliation:get-summary', data),
+  getReconciliationStatus: () => ipcRenderer.invoke('reconciliation:get-status'),
+  compareBalances: (data) => ipcRenderer.invoke('reconciliation:compare-balances', data),
+  getDifference: (data) => ipcRenderer.invoke('reconciliation:get-difference', data),
+  matchTransaction: (data) => ipcRenderer.invoke('reconciliation:match-transaction', data),
+  flagTransaction: (data) => ipcRenderer.invoke('reconciliation:flag', data),
+  getReconciliationStatistics: (data) => ipcRenderer.invoke('reconciliation:get-statistics', data)
 };
 
 // Recommendations APIs

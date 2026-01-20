@@ -192,3 +192,627 @@ input:focus, select:focus, textarea:focus {
     display: none !important;
   }
 }
+
+/* Voice Reconciliation Component Styles */
+.voice-reconciliation {
+  @apply bg-slate-900 rounded-xl border border-slate-800 overflow-hidden p-6;
+}
+
+.voice-reconciliation-header {
+  @apply flex items-center justify-between mb-8;
+}
+
+.header-title h2 {
+  @apply text-2xl font-bold text-white mb-1;
+}
+
+.header-subtitle {
+  @apply text-slate-400 text-sm;
+}
+
+.mic-status-badge {
+  @apply flex items-center gap-2 px-3 py-1.5 rounded-full text-white text-sm font-medium;
+}
+
+.status-dot {
+  @apply w-2 h-2 bg-white rounded-full animate-pulse;
+}
+
+.voice-input-section {
+  @apply flex flex-col items-center mb-8;
+}
+
+.mic-button {
+  @apply relative w-24 h-24 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 border-4 border-slate-700 
+         flex items-center justify-center cursor-pointer transition-all duration-300 shadow-lg;
+  @apply hover:shadow-emerald-500/30 hover:scale-105;
+}
+
+.mic-button.listening {
+  @apply bg-gradient-to-br from-red-500 to-rose-600 shadow-red-500/30;
+  animation: pulse-glow 2s infinite;
+}
+
+.mic-button.processing {
+  @apply bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-500/30;
+}
+
+.mic-button:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+.mic-icon {
+  @apply w-10 h-10 text-white;
+}
+
+.pulse-ring {
+  @apply absolute inset-0 rounded-full border-2 border-white/50 animate-ping;
+}
+
+.spinner {
+  @apply w-10 h-10 animate-spin;
+}
+
+.transcription-display {
+  @apply w-full max-w-2xl text-center mt-6 min-h-[60px] flex items-center justify-center;
+}
+
+.interim-transcript {
+  @apply text-xl text-slate-300 italic;
+}
+
+.final-transcript {
+  @apply text-xl text-white font-medium;
+}
+
+.placeholder-text {
+  @apply text-slate-500 text-lg;
+}
+
+.example-commands {
+  @apply w-full max-w-2xl mt-6;
+}
+
+.example-commands h4 {
+  @apply text-sm text-slate-400 mb-3;
+}
+
+.command-examples {
+  @apply flex flex-wrap justify-center gap-2;
+}
+
+.example {
+  @apply px-3 py-1.5 bg-slate-800 text-slate-300 rounded-lg text-sm;
+}
+
+.quick-actions-section {
+  @apply mb-8;
+}
+
+.quick-actions-section h4 {
+  @apply text-sm text-slate-400 mb-3;
+}
+
+.quick-actions-grid {
+  @apply grid grid-cols-2 sm:grid-cols-4 gap-3;
+}
+
+.quick-action-button {
+  @apply flex flex-col items-center gap-2 p-4 bg-slate-800 border border-slate-700 rounded-xl
+         transition-all hover:bg-slate-700 hover:border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.action-icon {
+  @apply text-2xl;
+}
+
+.action-label {
+  @apply text-sm text-slate-300;
+}
+
+.feedback-section {
+  @apply mb-6;
+}
+
+.error-message {
+  @apply flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-lg;
+}
+
+.error-icon {
+  @apply text-xl;
+}
+
+.error-message p {
+  @apply text-red-400;
+}
+
+.command-history-section {
+  @apply border-t border-slate-700 pt-6;
+}
+
+.command-history-section h4 {
+  @apply text-sm text-slate-400 mb-3;
+}
+
+.command-history-list {
+  @apply space-y-2;
+}
+
+.history-item {
+  @apply flex items-center gap-3 p-3 bg-slate-800/50 rounded-lg;
+}
+
+.history-transcript {
+  @apply flex-1 text-slate-300 text-sm italic;
+}
+
+.history-result {
+  @apply w-6 h-6 flex items-center justify-center rounded-full font-bold;
+}
+
+.history-result.success {
+  @apply bg-emerald-500/20 text-emerald-400;
+}
+
+.history-result.error {
+  @apply bg-red-500/20 text-red-400;
+}
+
+.history-time {
+  @apply text-xs text-slate-500;
+}
+
+.shortcut-hint {
+  @apply text-center text-xs text-slate-500 mt-4;
+}
+
+.shortcut-hint kbd {
+  @apply px-2 py-1 bg-slate-800 border border-slate-700 rounded text-slate-400 font-mono;
+}
+
+.voice-reconciliation.unsupported {
+  @apply flex items-center justify-center min-h-[300px];
+}
+
+.unsupported-message {
+  @apply text-center;
+}
+
+.unsupported-message h3 {
+  @apply text-xl font-semibold text-slate-300 mb-2;
+}
+
+.unsupported-message p {
+  @apply text-slate-500;
+}
+
+/* Voice Feedback Styles */
+.voice-feedback {
+  @apply p-4 bg-slate-800/50 border border-slate-700 rounded-lg;
+}
+
+.feedback-header {
+  @apply flex items-center gap-2 mb-2;
+}
+
+.feedback-icon {
+  @apply w-5 h-5;
+}
+
+.feedback-intent {
+  @apply text-sm font-medium text-slate-300;
+}
+
+.parsed-entities {
+  @apply flex flex-wrap gap-2 mt-3;
+}
+
+.entity-tag {
+  @apply px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs;
+}
+
+.entity-tag .label {
+  @apply text-slate-500 mr-1;
+}
+
+/* Reconciliation Results Styles */
+.reconciliation-results {
+  @apply mt-6 p-4 bg-slate-800/50 border border-slate-700 rounded-lg;
+}
+
+.results-header {
+  @apply flex items-center justify-between mb-4;
+}
+
+.results-header h3 {
+  @apply text-lg font-semibold text-white;
+}
+
+.close-button {
+  @apply p-1 text-slate-400 hover:text-white transition-colors;
+}
+
+.results-content {
+  @apply space-y-4;
+}
+
+.result-stat {
+  @apply flex items-center justify-between p-3 bg-slate-800 rounded-lg;
+}
+
+.stat-label {
+  @apply text-sm text-slate-400;
+}
+
+.stat-value {
+  @apply font-semibold text-white;
+}
+
+.stat-value.success {
+  @apply text-emerald-400;
+}
+
+.stat-value.warning {
+  @apply text-amber-400;
+}
+
+.stat-value.error {
+  @apply text-red-400;
+}
+
+.results-table {
+  @apply w-full text-sm;
+}
+
+.results-table th,
+.results-table td {
+  @apply px-3 py-2 text-left border-b border-slate-700;
+}
+
+.results-table th {
+  @apply text-slate-400 font-medium;
+}
+
+.results-table td {
+  @apply text-slate-300;
+}
+
+.results-actions {
+  @apply flex gap-3 mt-4;
+}
+
+/* Voice Feedback Component Additional Styles */
+.voice-feedback .feedback-header {
+  @apply flex items-center justify-between mb-3;
+}
+
+.voice-feedback h4 {
+  @apply text-sm font-medium text-slate-300;
+}
+
+.processing-indicator {
+  @apply text-xs px-2 py-1 bg-slate-700 text-slate-400 rounded-full;
+}
+
+.processing-indicator.active {
+  @apply bg-blue-500/20 text-blue-400;
+}
+
+.transcript-section,
+.intent-section,
+.entities-section,
+.error-section {
+  @apply mb-3;
+}
+
+.voice-feedback .label {
+  @apply text-xs text-slate-500 block mb-1;
+}
+
+.normalized-transcript {
+  @apply text-sm text-white italic;
+}
+
+.intent-badge {
+  @apply inline-block px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-sm font-medium;
+}
+
+.entities-grid {
+  @apply grid grid-cols-2 gap-2;
+}
+
+.entity-item {
+  @apply flex flex-col p-2 bg-slate-800 rounded;
+}
+
+.entity-label {
+  @apply text-xs text-slate-500;
+}
+
+.entity-value {
+  @apply text-sm text-white font-medium;
+}
+
+.fuzzy-match-warning {
+  @apply flex items-center gap-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded text-amber-400 text-sm mb-3;
+}
+
+.result-section {
+  @apply p-3 rounded-lg;
+}
+
+.result-section.success {
+  @apply bg-emerald-500/10 border border-emerald-500/20;
+}
+
+.result-section.error {
+  @apply bg-red-500/10 border border-red-500/20;
+}
+
+.result-content {
+  @apply flex items-center gap-2 text-sm;
+}
+
+.result-icon {
+  @apply w-5 h-5 flex items-center justify-center rounded-full font-bold;
+}
+
+.result-section.success .result-icon {
+  @apply bg-emerald-500/20 text-emerald-400;
+}
+
+.result-section.error .result-icon {
+  @apply bg-red-500/20 text-red-400;
+}
+
+.result-details {
+  @apply flex items-center gap-4 mt-2 text-xs text-slate-400;
+}
+
+.language-badge {
+  @apply inline-block mt-2 px-2 py-1 bg-slate-800 text-slate-400 rounded text-xs;
+}
+
+/* Reconciliation Results Component Additional Styles */
+.empty-results {
+  @apply flex flex-col items-center justify-center py-8 text-center;
+}
+
+.empty-icon {
+  @apply text-4xl mb-2;
+}
+
+.empty-results p {
+  @apply text-slate-400;
+}
+
+.results-list .list-summary {
+  @apply flex items-center justify-between p-3 bg-slate-800 rounded-lg mb-3;
+}
+
+.results-list .count {
+  @apply text-sm text-slate-300;
+}
+
+.results-list .total {
+  @apply text-sm font-medium text-emerald-400;
+}
+
+.transaction-items {
+  @apply space-y-2;
+}
+
+.transaction-item {
+  @apply flex items-center justify-between p-3 bg-slate-800/50 rounded-lg;
+}
+
+.item-main {
+  @apply flex items-center gap-3;
+}
+
+.item-date {
+  @apply text-xs text-slate-500;
+}
+
+.item-party {
+  @apply text-sm text-white;
+}
+
+.item-amount {
+  @apply text-sm font-medium text-slate-300;
+}
+
+.more-items {
+  @apply text-center py-2 text-xs text-slate-500;
+}
+
+.summary-view .summary-row {
+  @apply flex items-center justify-between p-3 rounded-lg mb-2;
+}
+
+.summary-row.reconciled {
+  @apply bg-emerald-500/10;
+}
+
+.summary-row.unreconciled {
+  @apply bg-slate-800;
+}
+
+.summary-label {
+  @apply text-sm text-slate-400;
+}
+
+.summary-values {
+  @apply flex flex-col items-end;
+}
+
+.summary-count {
+  @apply text-sm text-white;
+}
+
+.summary-amount {
+  @apply text-sm font-medium text-emerald-400;
+}
+
+.completion-rate {
+  @apply flex items-center gap-3 p-3 bg-slate-800 rounded-lg;
+}
+
+.completion-rate > span:first-child {
+  @apply text-sm text-slate-400;
+}
+
+.progress-bar {
+  @apply flex-1 h-2 bg-slate-700 rounded-full overflow-hidden;
+}
+
+.progress-fill {
+  @apply h-full bg-emerald-500 rounded-full transition-all duration-500;
+}
+
+.progress-text {
+  @apply text-sm font-medium text-emerald-400 min-w-[60px] text-right;
+}
+
+.status-view .balance-row,
+.status-view .difference-row {
+  @apply flex items-center justify-between p-3 rounded-lg mb-2;
+}
+
+.balance-row {
+  @apply bg-slate-800;
+}
+
+.difference-row {
+  @apply bg-slate-800;
+}
+
+.difference-row.matched {
+  @apply bg-emerald-500/10;
+}
+
+.difference-row.mismatched {
+  @apply bg-amber-500/10;
+}
+
+.balance-label,
+.difference-label {
+  @apply text-sm text-slate-400;
+}
+
+.balance-value,
+.difference-value {
+  @apply text-sm font-medium text-white;
+}
+
+.difference-row.matched .difference-value {
+  @apply text-emerald-400;
+}
+
+.difference-row.mismatched .difference-value {
+  @apply text-amber-400;
+}
+
+.reconciliation-progress {
+  @apply flex items-center gap-3 p-3 bg-slate-800 rounded-lg;
+}
+
+.reconciliation-progress > span:first-child {
+  @apply text-sm text-slate-400;
+}
+
+.comparison-view .comparison-grid {
+  @apply grid grid-cols-[1fr_auto_1fr] gap-4 items-center;
+}
+
+.comparison-column {
+  @apply p-4 rounded-lg text-center;
+}
+
+.comparison-column.bank {
+  @apply bg-slate-800;
+}
+
+.comparison-column.ledger {
+  @apply bg-slate-800;
+}
+
+.comparison-column h5 {
+  @apply text-xs text-slate-500 mb-2;
+}
+
+.comparison-column .balance {
+  @apply text-xl font-bold text-white mb-1;
+}
+
+.comparison-column .matched-count {
+  @apply text-xs text-slate-400;
+}
+
+.comparison-separator {
+  @apply flex items-center justify-center;
+}
+
+.status-icon {
+  @apply w-8 h-8 flex items-center justify-center rounded-full text-lg font-bold;
+}
+
+.status-icon.matched {
+  @apply bg-emerald-500/20 text-emerald-400;
+}
+
+.status-icon.mismatched {
+  @apply bg-amber-500/20 text-amber-400;
+}
+
+.difference-alert {
+  @apply flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg mt-4 text-amber-400 text-sm;
+}
+
+.reconciliation-summary .summary-main {
+  @apply flex items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-lg mb-3;
+}
+
+.success-icon {
+  @apply w-10 h-10 flex items-center justify-center bg-emerald-500/20 text-emerald-400 rounded-full text-xl font-bold;
+}
+
+.summary-details {
+  @apply flex flex-col;
+}
+
+.reconciliation-summary .summary-count {
+  @apply text-lg text-white;
+}
+
+.reconciliation-summary .summary-amount {
+  @apply text-sm text-emerald-400;
+}
+
+.summary-context {
+  @apply text-xs text-slate-500 mb-1;
+}
+
+.matched-list {
+  @apply flex flex-col gap-1 p-3 bg-slate-800 rounded-lg text-sm;
+}
+
+.matched-list > span:first-child {
+  @apply text-xs text-slate-500;
+}
+
+.matched-item {
+  @apply text-slate-300;
+}
+
+.matched-list .more {
+  @apply text-xs text-slate-500;
+}
+
+.unmatched-alert {
+  @apply flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-400 text-sm;
+}
+
+.generic-view pre {
+  @apply p-4 bg-slate-800 rounded-lg text-xs text-slate-300 overflow-auto;
+}

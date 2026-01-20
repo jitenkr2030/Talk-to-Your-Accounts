@@ -30,8 +30,8 @@ export function useVoiceReconciliation(options = {}) {
   useEffect(() => {
     const loadParties = async () => {
       try {
-        if (window.electron?.ipcRenderer) {
-          const response = await window.electron.ipcRenderer.invoke('parties:get-all', { 
+        if (window.api?.parties) {
+          const response = await window.api.parties.getAll({ 
             include_inactive: false 
           });
           if (response.success) {
@@ -214,11 +214,11 @@ export function useVoiceReconciliation(options = {}) {
    */
   const getStatistics = useCallback(async (period = 'today') => {
     try {
-      if (!window.electron?.ipcRenderer) {
+      if (!window.api?.reconciliation) {
         throw new Error('Electron IPC not available');
       }
 
-      const response = await window.electron.ipcRenderer.invoke('reconciliation:get-statistics', { period });
+      const response = await window.api.reconciliation.getStatistics({ period });
       return response;
     } catch (error) {
       console.error('Failed to get reconciliation statistics:', error);
@@ -231,11 +231,11 @@ export function useVoiceReconciliation(options = {}) {
    */
   const getUnreconciled = useCallback(async (filters = {}) => {
     try {
-      if (!window.electron?.ipcRenderer) {
+      if (!window.api?.reconciliation) {
         throw new Error('Electron IPC not available');
       }
 
-      const response = await window.electron.ipcRenderer.invoke('reconciliation:get-unreconciled', filters);
+      const response = await window.api.reconciliation.getUnreconciled(filters);
       return response;
     } catch (error) {
       console.error('Failed to get unreconciled transactions:', error);
@@ -248,8 +248,8 @@ export function useVoiceReconciliation(options = {}) {
    */
   const refreshParties = useCallback(async () => {
     try {
-      if (window.electron?.ipcRenderer) {
-        const response = await window.electron.ipcRenderer.invoke('parties:get-all', { 
+      if (window.api?.parties) {
+        const response = await window.api.parties.getAll({ 
           include_inactive: false 
         });
         if (response.success) {
@@ -282,7 +282,7 @@ export function useVoiceReconciliation(options = {}) {
  * Execute reconciliation command based on parsed intent
  */
 async function executeReconciliationCommand(parsed, options) {
-  if (!window.electron?.ipcRenderer) {
+  if (!window.api?.reconciliation) {
     throw new Error('Electron IPC not available');
   }
 
@@ -339,7 +339,7 @@ async function executeReconciliationCommand(parsed, options) {
 // Individual command execution functions
 
 async function reconcileSingleTransaction(entities, options) {
-  const response = await window.electron.ipcRenderer.invoke('reconciliation:reconcile-single', {
+  const response = await window.api.reconciliation.reconcileSingle({
     amount: entities.amount,
     party_id: entities.fuzzyMatch?.id,
     party_name: entities.party,
@@ -360,7 +360,7 @@ async function reconcileSingleTransaction(entities, options) {
 }
 
 async function reconcileAllTransactions(entities, options) {
-  const response = await window.electron.ipcRenderer.invoke('reconciliation:reconcile-all', {
+  const response = await window.api.reconciliation.reconcileAll({
     party_id: entities.partyId,
     date: entities.date,
     auto_match_only: true
@@ -378,7 +378,7 @@ async function reconcileAllTransactions(entities, options) {
 }
 
 async function reconcileByParty(entities, options) {
-  const response = await window.electron.ipcRenderer.invoke('reconciliation:reconcile-by-party', {
+  const response = await window.api.reconciliation.reconcileByParty({
     party_id: entities.fuzzyMatch?.id,
     party_name: entities.party
   });
@@ -395,7 +395,7 @@ async function reconcileByParty(entities, options) {
 }
 
 async function reconcileByDate(entities, options) {
-  const response = await window.electron.ipcRenderer.invoke('reconciliation:reconcile-by-date', {
+  const response = await window.api.reconciliation.reconcileByDate({
     date: entities.date
   });
 
@@ -411,7 +411,7 @@ async function reconcileByDate(entities, options) {
 }
 
 async function markAsReconciled(transactionId) {
-  const response = await window.electron.ipcRenderer.invoke('reconciliation:mark-reconciled', {
+  const response = await window.api.reconciliation.markReconciled({
     transaction_id: transactionId
   });
 
@@ -427,7 +427,7 @@ async function markAsReconciled(transactionId) {
 }
 
 async function unreconcileTransaction(transactionId) {
-  const response = await window.electron.ipcRenderer.invoke('reconciliation:unreconcile', {
+  const response = await window.api.reconciliation.unreconcile({
     transaction_id: transactionId
   });
 
@@ -443,7 +443,7 @@ async function unreconcileTransaction(transactionId) {
 }
 
 async function getUnreconciledTransactions(entities) {
-  const response = await window.electron.ipcRenderer.invoke('reconciliation:get-unreconciled', {
+  const response = await window.api.reconciliation.getUnreconciled({
     party_id: entities.partyId,
     date: entities.date
   });
@@ -460,7 +460,7 @@ async function getUnreconciledTransactions(entities) {
 }
 
 async function getReconciledTransactions(entities) {
-  const response = await window.electron.ipcRenderer.invoke('reconciliation:get-reconciled', {
+  const response = await window.api.reconciliation.getReconciled({
     party_id: entities.partyId,
     date: entities.date
   });
@@ -477,7 +477,7 @@ async function getReconciledTransactions(entities) {
 }
 
 async function getReconciliationSummary(entities) {
-  const response = await window.electron.ipcRenderer.invoke('reconciliation:get-summary', {
+  const response = await window.api.reconciliation.getSummary({
     period: entities.date?.type || 'today'
   });
 
@@ -493,7 +493,7 @@ async function getReconciliationSummary(entities) {
 }
 
 async function getReconciliationStatus(entities) {
-  const response = await window.electron.ipcRenderer.invoke('reconciliation:get-status', {});
+  const response = await window.api.reconciliation.getStatus({});
 
   if (!response.success) {
     throw new Error(response.error || 'Failed to get reconciliation status');
@@ -507,7 +507,7 @@ async function getReconciliationStatus(entities) {
 }
 
 async function compareBalances(entities) {
-  const response = await window.electron.ipcRenderer.invoke('reconciliation:compare-balances', {
+  const response = await window.api.reconciliation.compareBalances({
     party_id: entities.partyId
   });
 
@@ -523,7 +523,7 @@ async function compareBalances(entities) {
 }
 
 async function showDifference(entities) {
-  const response = await window.electron.ipcRenderer.invoke('reconciliation:get-difference', {
+  const response = await window.api.reconciliation.getDifference({
     party_id: entities.partyId,
     date: entities.date
   });
@@ -540,7 +540,7 @@ async function showDifference(entities) {
 }
 
 async function matchTransaction(entities) {
-  const response = await window.electron.ipcRenderer.invoke('reconciliation:match-transaction', {
+  const response = await window.api.reconciliation.matchTransaction({
     amount: entities.amount,
     party_id: entities.fuzzyMatch?.id,
     party_name: entities.party,
@@ -559,7 +559,7 @@ async function matchTransaction(entities) {
 }
 
 async function flagTransaction(transactionId) {
-  const response = await window.electron.ipcRenderer.invoke('reconciliation:flag', {
+  const response = await window.api.reconciliation.flag({
     transaction_id: transactionId
   });
 
