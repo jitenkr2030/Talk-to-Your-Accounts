@@ -9,20 +9,79 @@ import DataManagementPage from './pages/DataManagementPage';
 import InvoiceScanner from './pages/InvoiceScanner';
 import VoiceReconciliation from './components/Voice/VoiceReconciliation';
 
-// Helper to check if API is available with better error handling
-const isApiAvailable = () => {
-  try {
-    return typeof window !== 'undefined' && 
-           window.api && 
-           typeof window.api.auth === 'object' &&
-           window.api.auth !== null;
-  } catch (error) {
-    console.warn('API check failed:', error);
-    return false;
-  }
-};
-
 const AppContent = () => {
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [isAuthChecked, setIsAuthChecked] = useState(false);
+  
+  // Authentication state from store
+  const { 
+    isAuthenticated,
+    currentUser,
+    login,
+    logout,
+    checkAuthStatus
+  } = useAppStore();
+
+  // Initialize on mount
+  useEffect(() => {
+    const initApp = async () => {
+      // Small delay to ensure DOM is ready
+      await new Promise(resolve => setTimeout(resolve, 50));
+      setIsInitialized(true);
+    };
+    initApp();
+  }, []);
+
+  // Check auth after initialization
+  useEffect(() => {
+    if (isInitialized && !isAuthChecked) {
+      setIsAuthChecked(true);
+      checkAuthStatus().catch(() => {
+        // Auth check failed, will show login screen
+      });
+    }
+  }, [isInitialized, isAuthChecked]);
+
+  // Handle login
+  const handleLogin = useCallback(async (session) => {
+    // Update authentication state with the session
+    login({
+      userId: session.userId || session.id,
+      username: session.username,
+      role: session.role,
+      token: session.token
+    });
+    console.log('Login successful:', session);
+  }, [login]);
+
+  // Show loading while initializing
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-20 h-20 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 animate-pulse">
+            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-2">Talk to Your Accounts</h1>
+          <p className="text-slate-400">Starting...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login if not authenticated
+  if (!isAuthenticated) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
+
+  // Main app dashboard
+  return <DashboardView currentUser={currentUser} logout={logout} />;
+}
+
+// Separate DashboardView to avoid hydration issues
+const DashboardView = ({ currentUser, logout }) => {
   const [activeView, setActiveView] = useState('dashboard');
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -33,20 +92,9 @@ const AppContent = () => {
   const [currentReport, setCurrentReport] = useState(null);
   const [language, setLanguage] = useState('english');
   const [audioLevel, setAudioLevel] = useState(0);
-  const [isApiReady, setIsApiReady] = useState(null); // Start as null for hydration safety
-  const [isInitialCheckDone, setIsInitialCheckDone] = useState(false);
   const messagesEndRef = useRef(null);
-  const fileInputRef = useRef(null);
   
-  // Authentication state from store
-  const { 
-    isAuthenticated,
-    currentUser,
-    login,
-    logout,
-    checkAuthStatus,
-    set,
-    isLoadingAuth,
+  const {
     businessInfo,
     transactions,
     parties,
@@ -84,50 +132,22 @@ const AppContent = () => {
     addExpense
   } = useAppStore();
 
-  // One-time initialization on mount - simplified for stability
+  // Initialize app data
   useEffect(() => {
-    // Simple timeout-based initialization
-    const initTimer = setTimeout(() => {
-      setIsApiReady(true);
-      setIsInitialCheckDone(true);
-      console.log('App initialized');
-    }, 100);
-    
-    return () => clearTimeout(initTimer);
+    const initApp = async () => {
+      await Promise.all([
+        loadBusinessInfo(),
+        loadTransactions({}),
+        loadParties(),
+        loadProducts(),
+        loadExpenses({}),
+        loadDashboardSummary('month'),
+        loadAlerts({}),
+        calculateHealthScore('month')
+      ]);
+    };
+    initApp();
   }, []);
-
-  // Check authentication status - simplified
-  useEffect(() => {
-    if (isInitialCheckDone && !isAuthenticated) {
-      console.log('Checking auth status...');
-      checkAuthStatus().then((authenticated) => {
-        console.log('Auth check complete, authenticated:', authenticated);
-      }).catch((err) => {
-        console.warn('Auth check failed:', err);
-        // Continue anyway, show login screen
-      });
-    }
-  }, [isInitialCheckDone]);
-
-  // Initialize app data only when authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      console.log('User authenticated, initializing app...');
-      const initApp = async () => {
-        await Promise.all([
-          loadBusinessInfo(),
-          loadTransactions({}),
-          loadParties(),
-          loadProducts(),
-          loadExpenses({}),
-          loadDashboardSummary('month'),
-          loadAlerts({}),
-          calculateHealthScore('month')
-        ]);
-      };
-      initApp();
-    }
-  }, [isAuthenticated]);
 
   // Scroll to bottom of messages
   useEffect(() => {
@@ -144,52 +164,11 @@ const AppContent = () => {
     };
   }, []);
 
-  const handleLogin = useCallback(async (session) => {
-    // Update authentication state with the session
-    set({
-      isAuthenticated: true,
-      currentUser: {
-        id: session.userId || session.id,
-        username: session.username,
-        role: session.role
-      },
-      sessionToken: session.token
-    });
-    console.log('Login successful:', session);
-  }, []);
-
   const handleLogout = useCallback(async () => {
     await logout();
     setMessages([]);
     setActiveView('dashboard');
   }, [logout]);
-
-  // Show loading while checking API availability
-  if (isInitialCheckDone === false) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-20 h-20 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 animate-pulse">
-            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold text-white mb-2">Talk to Your Accounts</h1>
-          <p className="text-slate-400">Checking system...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // If not authenticated, show login screen
-  if (!isAuthenticated) {
-    console.log('Showing login screen, isAuthenticated:', isAuthenticated);
-    return <LoginScreen onLogin={handleLogin} />;
-  }
-
-  console.log('User authenticated, showing dashboard');
-
-  // Initialize app
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
