@@ -84,39 +84,30 @@ const AppContent = () => {
     addExpense
   } = useAppStore();
 
-  // One-time initialization on mount
+  // One-time initialization on mount - simplified for stability
   useEffect(() => {
-    let attempts = 0;
-    const maxAttempts = 100; // 10 seconds max (100 * 100ms)
+    // Simple timeout-based initialization
+    const initTimer = setTimeout(() => {
+      setIsApiReady(true);
+      setIsInitialCheckDone(true);
+      console.log('App initialized');
+    }, 100);
     
-    const checkApi = () => {
-      attempts++;
-      if (isApiAvailable()) {
-        setIsApiReady(true);
-        setIsInitialCheckDone(true);
-        console.log('API is ready after', attempts, 'attempts');
-      } else if (attempts < maxAttempts) {
-        setTimeout(checkApi, 100);
-      } else {
-        // Fallback: allow app to render anyway
-        console.warn('API check timed out, proceeding anyway');
-        setIsApiReady(false);
-        setIsInitialCheckDone(true);
-      }
-    };
-    
-    checkApi();
+    return () => clearTimeout(initTimer);
   }, []);
 
-  // Check authentication status after API is ready
+  // Check authentication status - simplified
   useEffect(() => {
-    if (isApiReady === true && !isAuthenticated) {
-      console.log('API ready, checking auth status...');
+    if (isInitialCheckDone && !isAuthenticated) {
+      console.log('Checking auth status...');
       checkAuthStatus().then((authenticated) => {
         console.log('Auth check complete, authenticated:', authenticated);
+      }).catch((err) => {
+        console.warn('Auth check failed:', err);
+        // Continue anyway, show login screen
       });
     }
-  }, [isApiReady, isAuthenticated]);
+  }, [isInitialCheckDone]);
 
   // Initialize app data only when authenticated
   useEffect(() => {
