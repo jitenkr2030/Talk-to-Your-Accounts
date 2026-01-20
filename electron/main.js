@@ -3959,7 +3959,7 @@ app.on('window-all-closed', () => {
 function initializeVoiceModule() {
   try {
     // Try to initialize the voice handlers
-    const { setupVoiceHandlers } = require('./src/main/services/voice/VoiceIPCHandlers.js');
+    const { setupVoiceHandlers } = require('../src/main/services/voice/VoiceIPCHandlers.js');
     
     // Initialize with main window reference
     setupVoiceHandlers(mainWindow);

@@ -673,6 +673,54 @@ class DatabaseManager {
       LIMIT 1
     `).get(userId);
 
+    // If no subscription exists, create a free plan subscription
+    if (!subscription) {
+      // Check if free plan exists, if not create it
+      let freePlan = this.db.prepare("SELECT plan_id FROM subscription_plans WHERE plan_id = 'free'").get();
+      
+      if (!freePlan) {
+        // Create free plan
+        this.db.prepare(`
+          INSERT INTO subscription_plans (plan_id, name, description, monthly_price, yearly_price, max_transactions, max_parties, max_products, features, is_active)
+          VALUES ('free', 'Free', 'Basic free plan with limited features', 0, 0, 50, 10, 20, '{"voiceCommands": true, "gstReports": true, "reconciliation": false, "prioritySupport": false, "invoiceScanning": false}', 1)
+        `).run();
+      }
+      
+      // Create default free subscription for user
+      const now = new Date().toISOString();
+      const periodEnd = new Date();
+      periodEnd.setMonth(periodEnd.getMonth() + 12); // Free plan lasts 12 months
+      
+      const licenseKey = this.generateLicenseKey();
+      
+      this.db.prepare(`
+        INSERT INTO user_subscriptions 
+        (user_id, plan_id, billing_cycle, current_period_start, current_period_end, license_key, subscription_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(userId, 'free', 'monthly', now, periodEnd.toISOString(), licenseKey, 'active');
+      
+      // Initialize usage tracker
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      const usageExists = this.db.prepare('SELECT id FROM usage_tracker WHERE user_id = ? AND month = ?').get(userId, currentMonth);
+      
+      if (!usageExists) {
+        this.db.prepare(`
+          INSERT INTO usage_tracker (user_id, month)
+          VALUES (?, ?)
+        `).run(userId, currentMonth);
+      }
+      
+      // Return the newly created subscription
+      return this.db.prepare(`
+        SELECT us.*, sp.*
+        FROM user_subscriptions us
+        JOIN subscription_plans sp ON us.plan_id = sp.plan_id
+        WHERE us.user_id = ? AND us.subscription_status = 'active'
+        ORDER BY us.created_at DESC
+        LIMIT 1
+      `).get(userId);
+    }
+
     return subscription;
   }
 
