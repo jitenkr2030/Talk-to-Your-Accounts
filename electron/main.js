@@ -431,6 +431,72 @@ function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_voice_logs_created ON voice_command_logs(created_at);
     CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
     CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
+
+    -- Subscription Plans
+    CREATE TABLE IF NOT EXISTS subscription_plans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      plan_id TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      monthly_price REAL NOT NULL,
+      yearly_price REAL NOT NULL,
+      currency TEXT DEFAULT 'INR',
+      max_transactions INTEGER DEFAULT 0,
+      max_parties INTEGER DEFAULT 0,
+      max_products INTEGER DEFAULT 0,
+      features TEXT,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- User Subscriptions
+    CREATE TABLE IF NOT EXISTS user_subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      plan_id TEXT NOT NULL,
+      subscription_status TEXT DEFAULT 'active',
+      billing_cycle TEXT DEFAULT 'monthly',
+      razorpay_subscription_id TEXT,
+      period_start TEXT,
+      period_end TEXT,
+      license_key TEXT UNIQUE,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (plan_id) REFERENCES subscription_plans(plan_id)
+    );
+
+    -- Usage Tracking
+    CREATE TABLE IF NOT EXISTS usage_tracker (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      month TEXT NOT NULL,
+      transaction_count INTEGER DEFAULT 0,
+      party_count INTEGER DEFAULT 0,
+      product_count INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      UNIQUE(user_id, month)
+    );
+
+    -- Payment Records
+    CREATE TABLE IF NOT EXISTS payment_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      subscription_id INTEGER,
+      amount REAL NOT NULL,
+      currency TEXT DEFAULT 'INR',
+      payment_method TEXT,
+      razorpay_payment_id TEXT,
+      razorpay_order_id TEXT,
+      status TEXT DEFAULT 'pending',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (subscription_id) REFERENCES user_subscriptions(id)
+    );
   `);
 
   // Initialize default tax settings
@@ -462,6 +528,90 @@ function initializeDatabase() {
   const catStmt = db.prepare('INSERT OR IGNORE INTO categories (name, type, gst_rate) VALUES (?, ?, ?)');
   for (const cat of defaultCategories) {
     catStmt.run(cat.name, cat.type, cat.gst_rate);
+  }
+
+  // Initialize default subscription plans
+  const defaultPlans = [
+    {
+      plan_id: 'free',
+      name: 'Free',
+      description: 'Perfect for getting started with basic accounting',
+      monthly_price: 0,
+      yearly_price: 0,
+      max_transactions: 50,
+      max_parties: 10,
+      max_products: 20,
+      features: JSON.stringify([
+        'Up to 50 transactions per month',
+        'Up to 10 parties/ledgers',
+        'Up to 20 products',
+        'Basic reports',
+        'GST calculations',
+        'Email support'
+      ])
+    },
+    {
+      plan_id: 'starter',
+      name: 'Starter',
+      description: 'Ideal for small businesses with growing needs',
+      monthly_price: 499,
+      yearly_price: 4990,
+      max_transactions: 500,
+      max_parties: 50,
+      max_products: 100,
+      features: JSON.stringify([
+        'Up to 500 transactions per month',
+        'Up to 50 parties/ledgers',
+        'Up to 100 products',
+        'All reports included',
+        'GST filing assistance',
+        'Priority email support',
+        'Bank reconciliation',
+        'Voice commands (Hindi/English)'
+      ])
+    },
+    {
+      plan_id: 'professional',
+      name: 'Professional',
+      description: 'Complete solution for established businesses',
+      monthly_price: 1499,
+      yearly_price: 14990,
+      max_transactions: 5000,
+      max_parties: 500,
+      max_products: 1000,
+      features: JSON.stringify([
+        'Up to 5,000 transactions per month',
+        'Up to 500 parties/ledgers',
+        'Up to 1,000 products',
+        'All reports included',
+        'Advanced analytics',
+        'Multi-user access',
+        'API access',
+        'Dedicated phone support',
+        'Custom integrations',
+        'Data export',
+        'Automated backups'
+      ])
+    }
+  ];
+
+  const planStmt = db.prepare(`
+    INSERT OR IGNORE INTO subscription_plans 
+    (plan_id, name, description, monthly_price, yearly_price, max_transactions, max_parties, max_products, features)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  for (const plan of defaultPlans) {
+    planStmt.run(
+      plan.plan_id,
+      plan.name,
+      plan.description,
+      plan.monthly_price,
+      plan.yearly_price,
+      plan.max_transactions,
+      plan.max_parties,
+      plan.max_products,
+      plan.features
+    );
   }
 
   console.log('Database initialized at:', dbPath);

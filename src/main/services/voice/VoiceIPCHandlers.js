@@ -15,7 +15,7 @@ async function initializeVoiceServices() {
 
   try {
     // Dynamic import for ES modules
-    const voiceServices = require('./src/main/services/voice/index.js');
+    const voiceServices = require('./index.js');
     voiceService = voiceServices.voiceService;
     commandParser = voiceServices.commandParser;
 
