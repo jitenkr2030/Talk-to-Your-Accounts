@@ -91,10 +91,10 @@ const LandingPage = ({ onNavigate }) => {
 
   // Quick actions
   const quickActions = [
-    { id: 'sale', label: 'New Sale', icon: FilePlus, color: 'bg-emerald-500', action: () => addMessage('user', 'Record a new sale transaction') },
-    { id: 'purchase', label: 'New Purchase', icon: FilePlus, color: 'bg-blue-500', action: () => addMessage('user', 'Record a new purchase transaction') },
-    { id: 'expense', label: 'Add Expense', icon: Receipt, color: 'bg-amber-500', action: () => addMessage('user', 'Add a new expense') },
-    { id: 'party', label: 'Add Party', icon: UserPlus, color: 'bg-purple-500', action: () => addMessage('user', 'Add a new party') },
+    { id: 'sale', label: 'New Sale', icon: FilePlus, color: 'bg-emerald-500', action: () => onNavigate?.('chat') },
+    { id: 'purchase', label: 'New Purchase', icon: FilePlus, color: 'bg-blue-500', action: () => onNavigate?.('chat') },
+    { id: 'expense', label: 'Add Expense', icon: Receipt, color: 'bg-amber-500', action: () => onNavigate?.('chat') },
+    { id: 'party', label: 'Add Party', icon: UserPlus, color: 'bg-purple-500', action: () => onNavigate?.('chat') },
     { id: 'export', label: 'Export Data', icon: Download, color: 'bg-cyan-500', action: () => onNavigate?.('data') },
     { id: 'import', label: 'Import Data', icon: Upload, color: 'bg-indigo-500', action: () => onNavigate?.('data') },
   ];
@@ -152,59 +152,7 @@ const LandingPage = ({ onNavigate }) => {
       {/* Header */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-slate-200 px-8 py-4">
         <div className="flex items-center justify-between">
-          {/* Search / AI Command */}
-          <div className="flex-1 max-w-2xl">
-            <div className={`relative transition-all duration-300 ${searchFocused ? 'scale-105' : ''}`}>
-              <svg
-                size={20}
-                className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${
-                  searchFocused ? 'text-emerald-500' : 'text-slate-400'
-                }`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <input
-                type="text"
-                value={aiQuery}
-                onChange={(e) => setAiQuery(e.target.value)}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
-                placeholder="Ask me anything... (e.g., 'Show today's sales')"
-                className="w-full pl-12 pr-20 py-3 bg-slate-100 border-2 border-transparent rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-all"
-              />
-              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                <button
-                  className={`p-2 rounded-lg transition-all ${
-                    isListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                  title="Voice Input"
-                >
-                  <svg size={18} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                  </svg>
-                </button>
-              </div>
-            </div>
 
-            {/* Quick Suggestions */}
-            {aiQuery === '' && (
-              <div className="flex items-center gap-2 mt-3 overflow-x-auto pb-1">
-                <span className="text-xs text-slate-400 whitespace-nowrap">Try asking:</span>
-                {aiSuggestions.slice(0, 4).map((suggestion, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setAiQuery(suggestion)}
-                    className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full whitespace-nowrap transition-colors"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
 
           {/* Right Actions */}
           <div className="flex items-center gap-4 ml-6">
