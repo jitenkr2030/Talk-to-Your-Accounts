@@ -11,6 +11,7 @@ on:
       - 'package.json'
       - 'vite.config.js'
       - 'electron-builder.yml'
+      - '.github/**'
   tags:
     - 'v*'
 
