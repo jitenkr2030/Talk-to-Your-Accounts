@@ -4168,22 +4168,64 @@ ipcMain.handle('invoice:process-ocr', async (event, imageData) => {
   try {
     console.log('Starting OCR processing in main process...');
     
-    // Remove data URL prefix if present
+    // Validate input
+    if (!imageData || typeof imageData !== 'string') {
+      throw new Error('Invalid image data provided');
+    }
+    
     let imagePath = imageData;
-    if (typeof imageData === 'string' && imageData.startsWith('data:')) {
-      // Convert data URL to temporary file for Tesseract
+    let tempFilePath = null;
+    
+    // Check if it's a valid data URL
+    if (imageData.startsWith('data:')) {
+      // Parse data URL
       const matches = imageData.match(/^data:image\/(\w+);base64,(.+)$/);
-      if (matches) {
+      
+      if (matches && matches[2].length > 0) {
         const ext = matches[1];
         const data = matches[2];
+        
+        // Validate base64 data
         const buffer = Buffer.from(data, 'base64');
-        const tempPath = path.join(app.getPath('temp'), `invoice_scan_${Date.now()}.${ext}`);
-        require('fs').writeFileSync(tempPath, buffer);
-        imagePath = tempPath;
+        if (buffer.length < 100) {
+          throw new Error('Image data is too small or invalid');
+        }
+        
+        tempFilePath = path.join(app.getPath('temp'), `invoice_scan_${Date.now()}.${ext}`);
+        fs.writeFileSync(tempFilePath, buffer);
+        imagePath = tempFilePath;
+      } else {
+        // Malformed data URL - try to extract base64 data anyway
+        const base64Data = imageData.replace(/^data:[^,]*,/, '');
+        if (base64Data.length > 100) {
+          try {
+            tempFilePath = path.join(app.getPath('temp'), `invoice_scan_${Date.now()}.jpg`);
+            const buffer = Buffer.from(base64Data, 'base64');
+            if (buffer.length > 100) {
+              fs.writeFileSync(tempFilePath, buffer);
+              imagePath = tempFilePath;
+            } else {
+              throw new Error('Invalid image data');
+            }
+          } catch (e) {
+            throw new Error('Failed to parse image data. Please try capturing or uploading again.');
+          }
+        } else {
+          throw new Error('Invalid image format. Please try again.');
+        }
       }
+    } else if (imageData.length > 0) {
+      // Treat as file path - check if it exists
+      if (!fs.existsSync(imageData)) {
+        throw new Error('Image file not found');
+      }
+      imagePath = imageData;
+    } else {
+      throw new Error('No image data provided');
     }
 
     // Perform OCR using Tesseract
+    console.log('Running Tesseract OCR on:', imagePath);
     const result = await Tesseract.recognize(imagePath, 'eng', {
       logger: m => {
         if (m.status === 'recognizing text') {
@@ -4202,14 +4244,15 @@ ipcMain.handle('invoice:process-ocr', async (event, imageData) => {
     const parsedData = parseInvoiceText(text);
 
     // Clean up temp file if created
-    if (typeof imageData === 'string' && imageData.startsWith('data:')) {
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
       try {
-        require('fs').unlinkSync(imagePath);
+        fs.unlinkSync(tempFilePath);
       } catch (e) {
         // Ignore cleanup errors
       }
     }
 
+    console.log('OCR completed successfully');
     return {
       success: true,
       header: parsedData.header,

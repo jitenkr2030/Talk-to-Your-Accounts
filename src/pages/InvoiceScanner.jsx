@@ -83,6 +83,12 @@ const InvoiceScanner = ({ onNavigate }) => {
       const canvas = canvasRef.current;
       const video = videoRef.current;
       
+      // Check if video has valid dimensions
+      if (video.videoWidth === 0 || video.videoHeight === 0) {
+        setError('Camera not ready. Please wait and try again.');
+        return;
+      }
+      
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       
@@ -90,6 +96,13 @@ const InvoiceScanner = ({ onNavigate }) => {
       ctx.drawImage(video, 0, 0);
       
       const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      
+      // Validate the data URL
+      if (!dataUrl || dataUrl.length < 100 || !dataUrl.startsWith('data:image/')) {
+        setError('Failed to capture image. Please try again.');
+        return;
+      }
+      
       setCapturedImage(dataUrl);
       setScanStatus('processing');
       
@@ -98,6 +111,8 @@ const InvoiceScanner = ({ onNavigate }) => {
       
       // Process the image
       processImage(dataUrl);
+    } else {
+      setError('Camera not available. Please use upload mode.');
     }
   };
 
@@ -112,10 +127,21 @@ const InvoiceScanner = ({ onNavigate }) => {
 
       const reader = new FileReader();
       reader.onload = (e) => {
-        setCapturedImage(e.target.result);
+        const result = e.target.result;
+        
+        // Validate the data URL
+        if (!result || result.length < 100 || !result.startsWith('data:image/')) {
+          setError('Failed to read image file. Please try a different file.');
+          return;
+        }
+        
+        setCapturedImage(result);
         setScanMode('upload');
         setScanStatus('processing');
-        processImage(e.target.result);
+        processImage(result);
+      };
+      reader.onerror = () => {
+        setError('Failed to read file. Please try again.');
       };
       reader.readAsDataURL(file);
     }
@@ -125,6 +151,20 @@ const InvoiceScanner = ({ onNavigate }) => {
   const processImage = async (imageData) => {
     try {
       setError(null);
+      
+      // Validate input
+      if (!imageData || typeof imageData !== 'string') {
+        setError('Invalid image data. Please try again.');
+        setScanStatus('idle');
+        return;
+      }
+      
+      // Validate data URL format
+      if (!imageData.startsWith('data:image/') || imageData.length < 100) {
+        setError('Invalid image format. Please capture or upload a valid image.');
+        setScanStatus('idle');
+        return;
+      }
       
       // Process with IPC-based OCR service
       const result = await window.api.invoiceScanning.processOCR(imageData);
