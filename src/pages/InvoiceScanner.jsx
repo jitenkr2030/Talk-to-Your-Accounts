@@ -16,7 +16,6 @@ import {
   Download
 } from 'lucide-react';
 import useAppStore from '../stores/appStore';
-import ocrService from '../services/invoiceOCR';
 
 const InvoiceScanner = ({ onNavigate }) => {
   const {
@@ -127,8 +126,8 @@ const InvoiceScanner = ({ onNavigate }) => {
     try {
       setError(null);
       
-      // Process with OCR service directly
-      const result = await ocrService.processInvoice(imageData);
+      // Process with IPC-based OCR service
+      const result = await window.api.invoiceScanning.processOCR(imageData);
       
       if (result.success) {
         setScannedData(result);

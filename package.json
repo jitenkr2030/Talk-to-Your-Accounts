@@ -1,6 +1,6 @@
 {
   "name": "talk-to-your-accounts",
-  "version": "1.0.56",
+  "version": "1.0.57",
   "description": "AI-powered offline-first desktop accounting application",
   "main": "electron/main.js",
   "scripts": {

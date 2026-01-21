@@ -205,7 +205,8 @@ const invoiceScanning = {
   importToTransactions: (id) => ipcRenderer.invoke('invoice:import', id),
   checkDuplicate: (invoiceNumber, vendorName, invoiceDate, totalAmount) => 
     ipcRenderer.invoke('invoice:check-duplicate', invoiceNumber, vendorName, invoiceDate, totalAmount),
-  getStatistics: (period) => ipcRenderer.invoke('invoice:get-statistics', period)
+  getStatistics: (period) => ipcRenderer.invoke('invoice:get-statistics', period),
+  processOCR: (imageData) => ipcRenderer.invoke('invoice:process-ocr', imageData)
 };
 
 // Expose protected APIs to renderer

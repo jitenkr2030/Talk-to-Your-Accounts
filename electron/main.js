@@ -1,9 +1,11 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, Notification } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const Database = require('better-sqlite3');
 const crypto = require('crypto');
 const dbManager = require('./database');
 const invoiceScanningDB = require('./databaseInvoiceScanning');
+const Tesseract = require('tesseract.js');
 
 // ==================== AUTHENTICATION HELPERS ====================
 function hashPin(pin, salt = null) {
@@ -4160,6 +4162,320 @@ ipcMain.handle('invoice:get-statistics', (event, period) => {
     return { success: false, error: error.message };
   }
 });
+
+// Process invoice image with OCR
+ipcMain.handle('invoice:process-ocr', async (event, imageData) => {
+  try {
+    console.log('Starting OCR processing in main process...');
+    
+    // Remove data URL prefix if present
+    let imagePath = imageData;
+    if (typeof imageData === 'string' && imageData.startsWith('data:')) {
+      // Convert data URL to temporary file for Tesseract
+      const matches = imageData.match(/^data:image\/(\w+);base64,(.+)$/);
+      if (matches) {
+        const ext = matches[1];
+        const data = matches[2];
+        const buffer = Buffer.from(data, 'base64');
+        const tempPath = path.join(app.getPath('temp'), `invoice_scan_${Date.now()}.${ext}`);
+        require('fs').writeFileSync(tempPath, buffer);
+        imagePath = tempPath;
+      }
+    }
+
+    // Perform OCR using Tesseract
+    const result = await Tesseract.recognize(imagePath, 'eng', {
+      logger: m => {
+        if (m.status === 'recognizing text') {
+          console.log(`OCR Progress: ${(m.progress * 100).toFixed(0)}%`);
+        }
+      }
+    });
+
+    const text = result.data.text;
+    const words = result.data.words || [];
+    const confidence = words.length > 0 
+      ? words.reduce((sum, word) => sum + word.confidence, 0) / words.length 
+      : 0;
+
+    // Parse the extracted text into invoice data
+    const parsedData = parseInvoiceText(text);
+
+    // Clean up temp file if created
+    if (typeof imageData === 'string' && imageData.startsWith('data:')) {
+      try {
+        require('fs').unlinkSync(imagePath);
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+    }
+
+    return {
+      success: true,
+      header: parsedData.header,
+      lines: parsedData.lines,
+      confidence: confidence,
+      rawText: text
+    };
+  } catch (error) {
+    console.error('OCR Processing Error:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to process invoice. Please try again.',
+      header: null,
+      lines: [],
+      confidence: 0
+    };
+  }
+});
+
+// Helper function to parse invoice text
+function parseInvoiceText(text) {
+  const header = {
+    invoice_number: null,
+    invoice_date: null,
+    due_date: null,
+    party_name: null,
+    party_gstin: null,
+    party_address: null,
+    party_phone: null,
+    vendor_name: null,
+    vendor_gstin: null,
+    subtotal: 0,
+    total_gst: 0,
+    total_amount: 0,
+    tax_type: 'GST'
+  };
+
+  const lines = [];
+  const linesArray = text.split('\n');
+
+  // Patterns for extraction
+  const patterns = {
+    invoiceNumber: /(?:invoice|inv|bill|receipt)[\s#]*[:.]?\s*([A-Z0-9\-\/]+)/i,
+    date: /(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})|(\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2})/,
+    gstin: /([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[0-9A-Z]{1}[Z]{1}[0-9A-Z]{1})/i,
+    vendorName: /(?:from|sold by|vendor|supplier)[\s:]+([A-Za-z\s]+?)(?:\n|$)/i,
+    partyName: /(?:to|bill to|ship to|customer)[\s:]+([A-Za-z\s]+?)(?:\n|$)/i,
+    totalAmount: /(?:total|grand total|amount payable|net amount|total payable)[\s:]*₹?\s*([\d,]+\.?\d*)/i,
+    gstAmount: /(?:gst|tax|total tax|sgst|cgst|igst)[\s:]*₹?\s*([\d,]+\.?\d*)/i
+  };
+
+  // Extract header information
+  for (const line of linesArray) {
+    const blockText = line.trim();
+    if (!blockText) continue;
+
+    // Invoice number
+    if (!header.invoice_number) {
+      const invoiceMatch = blockText.match(patterns.invoiceNumber);
+      if (invoiceMatch) {
+        header.invoice_number = invoiceMatch[1].trim();
+      }
+    }
+
+    // Date
+    if (!header.invoice_date) {
+      const dateMatch = blockText.match(patterns.date);
+      if (dateMatch) {
+        header.invoice_date = normalizeDate(dateMatch[0]);
+      }
+    }
+
+    // GSTIN
+    const gstinMatch = blockText.match(patterns.gstin);
+    if (gstinMatch && !header.party_gstin) {
+      header.party_gstin = gstinMatch[1];
+    }
+
+    // Vendor name
+    if (!header.vendor_name) {
+      const vendorMatch = blockText.match(patterns.vendorName);
+      if (vendorMatch) {
+        header.vendor_name = vendorMatch[1].trim();
+      }
+    }
+
+    // Party name
+    if (!header.party_name) {
+      const partyMatch = blockText.match(patterns.partyName);
+      if (partyMatch) {
+        header.party_name = partyMatch[1].trim();
+      }
+    }
+
+    // Total amount
+    if (header.total_amount === 0) {
+      const totalMatch = blockText.match(patterns.totalAmount);
+      if (totalMatch) {
+        header.total_amount = parseFloat(totalMatch[1].replace(/,/g, ''));
+      }
+    }
+
+    // GST amount
+    if (header.total_gst === 0) {
+      const gstMatch = blockText.match(patterns.gstAmount);
+      if (gstMatch) {
+        header.total_gst = parseFloat(gstMatch[1].replace(/,/g, ''));
+      }
+    }
+
+    // Detect line items
+    if (isLineItemStart(blockText) && lines.length === 0) {
+      // Start collecting line items
+    }
+
+    if (isLineItem(blockText) && (header.invoice_number || lines.length > 0)) {
+      const lineItem = parseLineItem(blockText, lines.length);
+      if (lineItem) {
+        lines.push(lineItem);
+      }
+    }
+
+    // End of line items
+    if (lines.length > 0 && isLineItemEnd(blockText)) {
+      break;
+    }
+  }
+
+  // Calculate subtotal from line items
+  header.subtotal = lines.reduce((sum, line) => sum + line.amount, 0);
+
+  // If total not found, calculate from line items
+  if (header.total_amount === 0 && lines.length > 0) {
+    header.total_amount = lines.reduce((sum, line) => sum + line.total_amount, 0);
+  }
+
+  return { header, lines };
+}
+
+// Helper functions for parsing
+function isLineItemStart(line) {
+  const indicators = ['item', 'description', 'qty', 'quantity', 'rate', 'price', 'amount', 'items', 'particulars', 'product', 'code', 'hsn', 'sac'];
+  return indicators.some(ind => line.toLowerCase().includes(ind));
+}
+
+function isLineItem(line) {
+  const lineItemPatterns = [
+    /^\d+\s+\d+\s+[\d,]+\.?\d*/,
+    /^\d+\s*[xX*]\s*\d+.*[\d,]+\.?\d*/,
+    /^[A-Za-z\s]+\d+[\d,]*\.?\d+/,
+    /\d+\s+\w+\s+\d+\.?\d*\s+\d+\.?\d*/
+  ];
+  return lineItemPatterns.some(pattern => pattern.test(line.trim()));
+}
+
+function isLineItemEnd(line) {
+  const endIndicators = ['subtotal', 'sub total', 'total', 'grand total', 'tax', 'gst', 'round off', 'roundoff', 'amount payable', 'net amount'];
+  return endIndicators.some(ind => line.toLowerCase().includes(ind));
+}
+
+function parseLineItem(line, itemNumber) {
+  try {
+    const cleanedLine = line.trim();
+    let quantity = 1;
+    let rate = 0;
+    let amount = 0;
+    let description = cleanedLine;
+    let gstRate = 0;
+
+    // Pattern 1: "2 x 5 = 100" or "2*5 100"
+    let match = cleanedLine.match(/(\d+\.?\d*)\s*[xX*]\s*(\d+\.?\d*)\s*[=]*\s*(\d+\.?\d*)/);
+    if (match) {
+      quantity = parseFloat(match[1]);
+      rate = parseFloat(match[2]);
+      amount = parseFloat(match[3]);
+      description = cleanedLine.replace(match[0], '').trim();
+    }
+
+    // Pattern 2: "2 5 100" (qty rate amount)
+    if (!match) {
+      match = cleanedLine.match(/^(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)/);
+      if (match) {
+        quantity = parseFloat(match[1]);
+        rate = parseFloat(match[2]);
+        amount = parseFloat(match[3]);
+        description = cleanedLine.replace(match[0], '').trim();
+      }
+    }
+
+    // Pattern 3: Extract from end of line
+    if (!match) {
+      match = cleanedLine.match(/(.+?)\s+(\d+\.?\d*)\s*$/);
+      if (match) {
+        description = match[1].trim();
+        amount = parseFloat(match[2]);
+        if (amount > 0 && amount < 100000) {
+          rate = amount;
+        } else {
+          rate = amount;
+        }
+      }
+    }
+
+    // Estimate GST rate
+    const taxableAmount = amount;
+    gstRate = estimateGSTRate(taxableAmount);
+    const gstAmount = (taxableAmount * gstRate) / 100;
+
+    return {
+      item_number: itemNumber,
+      description: description || 'Item',
+      quantity,
+      unit: 'pcs',
+      rate,
+      amount: taxableAmount,
+      gst_rate: gstRate,
+      cgst_amount: gstAmount / 2,
+      sgst_amount: gstAmount / 2,
+      igst_amount: 0,
+      total_amount: taxableAmount + gstAmount,
+      confidence: 70
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+function estimateGSTRate(amount) {
+  if (amount <= 1000) return 0;
+  if (amount <= 10000) return 5;
+  if (amount <= 20000) return 12;
+  if (amount <= 50000) return 18;
+  return 28;
+}
+
+function normalizeDate(dateStr) {
+  try {
+    const parts = dateStr.split(/[\/\-\.]/);
+    if (parts.length !== 3) return dateStr;
+
+    let day, month, year;
+    if (parts[0].length === 4) {
+      year = parts[0];
+      month = parts[1];
+      day = parts[2];
+    } else {
+      day = parts[0];
+      month = parts[1];
+      year = parts[2];
+      if (year.length === 2) {
+        year = '20' + year;
+      }
+    }
+
+    const monthNum = parseInt(month);
+    if (monthNum < 1 || monthNum > 12) {
+      const temp = day;
+      day = month;
+      month = temp;
+    }
+
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  } catch (error) {
+    return dateStr;
+  }
+}
 
 // ==================== INITIALIZATION ====================
 app.whenReady().then(() => {
