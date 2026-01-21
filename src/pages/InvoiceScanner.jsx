@@ -37,10 +37,22 @@ const InvoiceScanner = ({ onNavigate }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
+  const cameraStartedRef = useRef(false);
 
-  // Load scanned invoices from database
+  // Load scanned invoices and start camera on mount
   useEffect(() => {
     loadScannedInvoices();
+    
+    // Start camera after a short delay to ensure DOM is ready
+    const timer = setTimeout(() => {
+      if (!cameraStartedRef.current) {
+        startCamera();
+      }
+    }, 500);
+    
+    return () => {
+      clearTimeout(timer);
+    };
   }, []);
 
   // Cleanup camera on unmount
@@ -55,13 +67,32 @@ const InvoiceScanner = ({ onNavigate }) => {
   // Start camera preview
   const startCamera = async () => {
     try {
+      // Check if camera is already running
+      if (videoRef.current && videoRef.current.srcObject) {
+        const tracks = videoRef.current.srcObject.getTracks();
+        if (tracks.some(t => t.readyState === 'live')) {
+          setScanStatus('idle');
+          setError(null);
+          return;
+        }
+      }
+      
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
       });
+      
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        cameraStartedRef.current = true;
         setScanStatus('idle');
         setError(null);
+        
+        // Wait for video to be ready
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current.play().catch(err => {
+            console.error('Error playing video:', err);
+          });
+        };
       }
     } catch (err) {
       setError('Unable to access camera. Please check permissions or use upload mode.');
@@ -79,41 +110,65 @@ const InvoiceScanner = ({ onNavigate }) => {
 
   // Capture image from camera
   const captureImage = () => {
-    if (videoRef.current && canvasRef.current) {
-      const canvas = canvasRef.current;
-      const video = videoRef.current;
-      
-      // Check if video has valid dimensions
-      if (video.videoWidth === 0 || video.videoHeight === 0) {
-        setError('Camera not ready. Please wait and try again.');
-        return;
-      }
-      
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0);
-      
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-      
-      // Validate the data URL
-      if (!dataUrl || dataUrl.length < 100 || !dataUrl.startsWith('data:image/')) {
-        setError('Failed to capture image. Please try again.');
-        return;
-      }
-      
-      setCapturedImage(dataUrl);
-      setScanStatus('processing');
-      
-      // Stop camera after capture
-      stopCamera();
-      
-      // Process the image
-      processImage(dataUrl);
-    } else {
-      setError('Camera not available. Please use upload mode.');
+    if (!videoRef.current || !canvasRef.current) {
+      setError('Camera not available. Please refresh and try again.');
+      return;
     }
+    
+    const video = videoRef.current;
+    
+    // Check if video stream is active
+    if (!video.srcObject || !video.srcObject.active) {
+      // Try to restart camera
+      startCamera();
+      setError('Camera stream was interrupted. Restarting...');
+      return;
+    }
+    
+    // Check if video has valid dimensions and is playing
+    if (video.videoWidth === 0 || video.videoHeight === 0 || video.readyState < 2) {
+      // Wait for video to be ready
+      const checkVideoReady = () => {
+        if (video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= 2) {
+          performCapture();
+        } else {
+          setTimeout(checkVideoReady, 100);
+        }
+      };
+      checkVideoReady();
+      return;
+    }
+    
+    performCapture();
+  };
+
+  // Perform the actual capture
+  const performCapture = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0);
+    
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    
+    // Validate the data URL
+    if (!dataUrl || dataUrl.length < 100 || !dataUrl.startsWith('data:image/')) {
+      setError('Failed to capture image. Please try again.');
+      return;
+    }
+    
+    setCapturedImage(dataUrl);
+    setScanStatus('processing');
+    
+    // Stop camera after capture
+    stopCamera();
+    
+    // Process the image
+    processImage(dataUrl);
   };
 
   // Handle file upload
