@@ -15,9 +15,10 @@ class OCRService {
   // Initialize Tesseract worker
   async initialize() {
     if (this.initialized) return;
-    
+
     try {
-      this.worker = await Tesseract.createWorker('eng+hin', 1, {
+      // For Electron renderer process, use createWorker with proper options
+      this.worker = await Tesseract.createWorker('eng', 1, {
         logger: m => {
           if (m.status === 'recognizing text') {
             console.log(`OCR Progress: ${(m.progress * 100).toFixed(0)}%`);
@@ -28,7 +29,8 @@ class OCRService {
       console.log('Tesseract OCR initialized successfully');
     } catch (error) {
       console.error('Failed to initialize Tesseract:', error);
-      throw error;
+      // Don't throw, allow fallback to non-worker mode
+      this.initialized = false;
     }
   }
 
@@ -39,7 +41,7 @@ class OCRService {
       await this.initialize();
 
       let imagePath = imagePathOrData;
-      
+
       // If we receive base64 data URL, handle it
       if (typeof imagePathOrData === 'string' && imagePathOrData.startsWith('data:')) {
         // For base64, we'll use the data URL directly
@@ -72,7 +74,7 @@ class OCRService {
       console.error('OCR Processing Error:', error);
       return {
         success: false,
-        error: error.message,
+        error: error.message || 'Failed to process invoice. Please try again.',
         header: null,
         lines: [],
         confidence: 0
@@ -96,30 +98,65 @@ class OCRService {
   // Perform OCR using Tesseract.js
   async performOCR(imagePath) {
     const startTime = Date.now();
-    
+
     try {
-      // Use Tesseract to recognize text
-      const result = await this.worker.recognize(imagePath);
-      
-      const text = result.data.text;
-      
-      // Parse blocks from Tesseract output
-      const blocks = this.parseTextBlocks(result.data);
-      
-      // Calculate average confidence
-      const words = result.data.words || [];
-      const confidence = words.length > 0 
-        ? words.reduce((sum, word) => sum + word.confidence, 0) / words.length 
-        : 0;
+      // If worker is not initialized, try to initialize now
+      if (!this.worker) {
+        await this.initialize();
+      }
 
-      const processingTime = Date.now() - startTime;
+      // If worker is available, use it
+      if (this.worker) {
+        // Use Tesseract to recognize text
+        const result = await this.worker.recognize(imagePath);
 
-      return {
-        text,
-        blocks,
-        confidence,
-        processingTime
-      };
+        const text = result.data.text;
+
+        // Parse blocks from Tesseract output
+        const blocks = this.parseTextBlocks(result.data);
+
+        // Calculate average confidence
+        const words = result.data.words || [];
+        const confidence = words.length > 0
+          ? words.reduce((sum, word) => sum + word.confidence, 0) / words.length
+          : 0;
+
+        const processingTime = Date.now() - startTime;
+
+        return {
+          text,
+          blocks,
+          confidence,
+          processingTime
+        };
+      } else {
+        // Fallback: Use Tesseract.recognize directly without persistent worker
+        console.log('Using fallback OCR method without persistent worker');
+        const result = await Tesseract.recognize(imagePath, 'eng', {
+          logger: m => {
+            if (m.status === 'recognizing text') {
+              console.log(`OCR Progress: ${(m.progress * 100).toFixed(0)}%`);
+            }
+          }
+        });
+
+        const text = result.data.text;
+        const blocks = this.parseTextBlocks(result.data);
+
+        const words = result.data.words || [];
+        const confidence = words.length > 0
+          ? words.reduce((sum, word) => sum + word.confidence, 0) / words.length
+          : 0;
+
+        const processingTime = Date.now() - startTime;
+
+        return {
+          text,
+          blocks,
+          confidence,
+          processingTime
+        };
+      }
     } catch (error) {
       console.error('Tesseract execution error:', error);
       throw error;
