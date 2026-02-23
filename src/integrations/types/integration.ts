@@ -255,3 +255,36 @@ export interface FeatureFlags {
   circuitBreaker: boolean;
   retryEnabled: boolean;
 }
+
+// Error Recovery Types
+export interface DeadLetterQueueItem {
+  id: number;
+  provider: string;
+  operationType: string;
+  recordType?: string;
+  recordId?: string;
+  idempotencyKey?: string;
+  payload: Record<string, unknown>;
+  errorMessage: string;
+  errorCode?: string;
+  attemptCount: number;
+  lastAttemptAt?: Date;
+  createdAt?: Date;
+  status: 'pending' | 'retrying' | 'completed' | 'discarded';
+}
+
+export interface DeadLetterQueueResult {
+  success: boolean;
+  queue?: DeadLetterQueueItem[];
+  error?: string;
+}
+
+export interface RetryResult {
+  success: boolean;
+  error?: string;
+}
+
+export interface DiscardResult {
+  success: boolean;
+  error?: string;
+}

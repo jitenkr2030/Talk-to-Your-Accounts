@@ -1,6 +1,7 @@
 // Export all feature components
 export { default as AlertNotificationCenter } from './AlertNotificationCenter';
 export { default as ErrorDetectionPanel } from './ErrorDetectionPanel';
+export { default as ErrorRecoveryPanel } from './ErrorRecoveryPanel';
 export { default as ReconciliationPanel } from './ReconciliationPanel';
 export { default as VoiceCommandWidget } from './VoiceCommandWidget';
 export { default as AuditLogViewer } from './AuditLogViewer';

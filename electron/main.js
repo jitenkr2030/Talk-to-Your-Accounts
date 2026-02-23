@@ -7,6 +7,65 @@ const dbManager = require('./database');
 const invoiceScanningDB = require('./databaseInvoiceScanning');
 const Tesseract = require('tesseract.js');
 
+// Audit Service
+const auditService = require('../src/services/auditService');
+
+// E-Invoice Service
+const einvoiceService = require('../src/services/einvoiceService');
+
+// GST Return Service
+const gstReturnService = require('../src/services/gstReturnService');
+
+// Inventory Service
+const inventoryService = require('../src/services/inventoryService');
+
+// Report Engine
+const ReportEngine = require('../src/services/reportEngine');
+let reportEngine = null;
+
+// Banking Service
+const bankingService = require('../src/services/bankingService');
+
+// Payment Gateway Service
+const paymentGatewayService = require('../src/services/paymentGatewayService');
+
+// Expense Service
+const expenseService = require('../src/services/expenseService');
+
+// Budget Service
+const budgetService = require('../src/services/budgetService');
+
+// Vendor Service
+const vendorService = require('../src/services/vendorService');
+
+// Project Service
+const projectService = require('../src/services/projectService');
+
+// User Service
+const userService = require('../src/services/userService');
+
+// E-Way Bill Service
+const ewaybillService = require('../src/services/ewaybillService');
+
+// API Gateway Service
+const apiGatewayService = require('../src/services/apiGatewayService');
+
+// Analytics Service
+const analyticsService = require('../src/services/analyticsService');
+
+// Currency Service
+const currencyService = require('../src/services/currencyService');
+
+// Voice Service
+const voiceService = require('../src/services/voiceService');
+
+// Security Service
+const securityService = require('../src/services/securityService');
+
+// Notification Service
+const notificationService = require('../src/services/notificationService');
+const aiService = require('../src/services/aiService');
+
 // ==================== AUTHENTICATION HELPERS ====================
 function hashPin(pin, salt = null) {
   const useSalt = salt || crypto.randomBytes(16).toString('hex');
@@ -617,6 +676,10 @@ function initializeDatabase() {
   }
 
   console.log('Database initialized at:', dbPath);
+  
+  // Initialize Audit Service
+  initializeAuditService(db);
+  
   return db;
 }
 
@@ -663,16 +726,22 @@ function calculateGST(amount, gstRate, state) {
   }
 }
 
-// Helper function to log audit
-function logAudit(db, action, entityType, entityId, oldValues, newValues, details) {
-  try {
-    db.prepare(`
-      INSERT INTO audit_logs (action, entity_type, entity_id, old_values, new_values, details)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(action, entityType, entityId, oldValues ? JSON.stringify(oldValues) : null, newValues ? JSON.stringify(newValues) : null, details);
-  } catch (e) {
-    console.error('Audit log error:', e);
-  }
+// Helper function to log audit (now uses AuditService)
+function logAudit(action, entityType, entityId, oldValues, newValues, details, userId = null) {
+  auditService.log({
+    action,
+    entityType,
+    entityId,
+    userId,
+    oldValues,
+    newValues,
+    details
+  });
+}
+
+// Initialize Audit Service after database is ready
+function initializeAuditService(database) {
+  auditService.initialize(database);
 }
 
 // Helper function to create notification
@@ -710,7 +779,7 @@ ipcMain.handle('set-business-info', (event, data) => {
       db.prepare('INSERT INTO business_info (key, value) VALUES (?, ?)').run(key, value);
     }
   }
-  logAudit(db, 'UPDATE', 'business_info', null, null, data, 'Updated business information');
+  logAudit( 'UPDATE', 'business_info', null, null, data, 'Updated business information');
   return true;
 });
 
@@ -755,7 +824,7 @@ ipcMain.handle('add-party', (event, party) => {
     party.credit_days || 0, party.notes || null
   );
   
-  logAudit(db, 'CREATE', 'parties', result.lastInsertRowid, null, party, `Added party: ${party.name}`);
+  logAudit( 'CREATE', 'parties', result.lastInsertRowid, null, party, `Added party: ${party.name}`);
   return result.lastInsertRowid;
 });
 
@@ -776,7 +845,7 @@ ipcMain.handle('update-party', (event, id, party) => {
     party.credit_days || 0, party.notes || null, id
   );
   
-  logAudit(db, 'UPDATE', 'parties', id, old, party, `Updated party: ${party.name}`);
+  logAudit( 'UPDATE', 'parties', id, old, party, `Updated party: ${party.name}`);
   return true;
 });
 
@@ -786,7 +855,7 @@ ipcMain.handle('delete-party', (event, id) => {
   
   // Soft delete
   db.prepare('UPDATE parties SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
-  logAudit(db, 'DELETE', 'parties', id, party, null, `Deleted party: ${party.name}`);
+  logAudit( 'DELETE', 'parties', id, party, null, `Deleted party: ${party.name}`);
   return true;
 });
 
@@ -854,7 +923,7 @@ ipcMain.handle('add-product', (event, product) => {
     product.min_stock || 0, product.max_stock || 0, product.location || null, product.description || null
   );
   
-  logAudit(db, 'CREATE', 'products', result.lastInsertRowid, null, product, `Added product: ${product.name}`);
+  logAudit( 'CREATE', 'products', result.lastInsertRowid, null, product, `Added product: ${product.name}`);
   return result.lastInsertRowid;
 });
 
@@ -875,7 +944,7 @@ ipcMain.handle('update-product', (event, id, product) => {
     product.min_stock || 0, product.max_stock || 0, product.location || null, product.description || null, id
   );
   
-  logAudit(db, 'UPDATE', 'products', id, old, product, `Updated product: ${product.name}`);
+  logAudit( 'UPDATE', 'products', id, old, product, `Updated product: ${product.name}`);
   return true;
 });
 
@@ -884,7 +953,7 @@ ipcMain.handle('delete-product', (event, id) => {
   if (!product) throw new Error('Product not found');
   
   db.prepare('UPDATE products SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
-  logAudit(db, 'DELETE', 'products', id, product, null, `Deleted product: ${product.name}`);
+  logAudit( 'DELETE', 'products', id, product, null, `Deleted product: ${product.name}`);
   return true;
 });
 
@@ -1000,7 +1069,7 @@ ipcMain.handle('add-transaction', (event, transaction) => {
     cashType === 'in' ? gstCalculation.total_amount : 0,
     cashType === 'out' ? gstCalculation.total_amount : 0, 0);
   
-  logAudit(db, 'CREATE', 'transactions', result.lastInsertRowid, null, transaction, `Created ${transaction.voucher_type} transaction: ${voucherNo}`);
+  logAudit( 'CREATE', 'transactions', result.lastInsertRowid, null, transaction, `Created ${transaction.voucher_type} transaction: ${voucherNo}`);
   
   // Check for alerts
   checkTransactionAlerts(result.lastInsertRowid, transaction, gstCalculation);
@@ -1031,7 +1100,7 @@ ipcMain.handle('update-transaction', (event, id, transaction) => {
     transaction.payment_method || null, transaction.reference_no || null, transaction.due_date || null, id
   );
   
-  logAudit(db, 'UPDATE', 'transactions', id, old, transaction, `Updated transaction: ${old.voucher_no}`);
+  logAudit( 'UPDATE', 'transactions', id, old, transaction, `Updated transaction: ${old.voucher_no}`);
   return true;
 });
 
@@ -1049,7 +1118,7 @@ ipcMain.handle('cancel-transaction', (event, id, reason) => {
       .run(stockChange, stockChange, transaction.product_id);
   }
   
-  logAudit(db, 'CANCEL', 'transactions', id, { is_cancelled: 0 }, { is_cancelled: 1, reason }, `Cancelled transaction: ${transaction.voucher_no}`);
+  logAudit( 'CANCEL', 'transactions', id, { is_cancelled: 0 }, { is_cancelled: 1, reason }, `Cancelled transaction: ${transaction.voucher_no}`);
   return true;
 });
 
@@ -1108,7 +1177,7 @@ ipcMain.handle('add-payment', (event, payment) => {
       .run(status, payment.transaction_id);
   }
   
-  logAudit(db, 'CREATE', 'payments', result.lastInsertRowid, null, payment, `Added payment: ₹${payment.amount}`);
+  logAudit( 'CREATE', 'payments', result.lastInsertRowid, null, payment, `Added payment: ₹${payment.amount}`);
   return result.lastInsertRowid;
 });
 
@@ -1147,13 +1216,1652 @@ ipcMain.handle('add-expense', (event, expense) => {
     expense.is_recurring ? 1 : 0, expense.recurring_frequency || null
   );
   
-  logAudit(db, 'CREATE', 'expenses', result.lastInsertRowid, null, expense, `Added expense: ₹${expense.amount} (${expense.category})`);
+  logAudit( 'CREATE', 'expenses', result.lastInsertRowid, null, expense, `Added expense: ₹${expense.amount} (${expense.category})`);
   return result.lastInsertRowid;
 });
 
 ipcMain.handle('delete-expense', (event, id) => {
   db.prepare('DELETE FROM expenses WHERE id = ?').run(id);
   return true;
+});
+
+// ==================== EXPENSE SERVICE HANDLERS ====================
+ipcMain.handle('expense:get-categories', async (event) => {
+  try {
+    return await expenseService.getCategories(db);
+  } catch (error) {
+    console.error('Error getting expense categories:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:add-category', async (event, categoryData) => {
+  try {
+    return await expenseService.addCategory(db, categoryData);
+  } catch (error) {
+    console.error('Error adding expense category:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:update-category', async (event, categoryId, categoryData) => {
+  try {
+    return await expenseService.updateCategory(db, categoryId, categoryData);
+  } catch (error) {
+    console.error('Error updating expense category:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:delete-category', async (event, categoryId) => {
+  try {
+    return await expenseService.deleteCategory(db, categoryId);
+  } catch (error) {
+    console.error('Error deleting expense category:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:get-all', async (event, filters = {}) => {
+  try {
+    return await expenseService.getAllExpenses(db, filters);
+  } catch (error) {
+    console.error('Error getting expenses:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:get-by-id', async (event, expenseId) => {
+  try {
+    return await expenseService.getExpenseById(db, expenseId);
+  } catch (error) {
+    console.error('Error getting expense:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:create', async (event, expenseData) => {
+  try {
+    return await expenseService.createExpense(db, expenseData);
+  } catch (error) {
+    console.error('Error creating expense:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:update', async (event, expenseId, expenseData) => {
+  try {
+    return await expenseService.updateExpense(db, expenseId, expenseData);
+  } catch (error) {
+    console.error('Error updating expense:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:delete', async (event, expenseId) => {
+  try {
+    return await expenseService.deleteExpense(db, expenseId);
+  } catch (error) {
+    console.error('Error deleting expense:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:approve', async (event, expenseId, approvalData) => {
+  try {
+    return await expenseService.approveExpense(db, expenseId, approvalData);
+  } catch (error) {
+    console.error('Error approving expense:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:reject', async (event, expenseId, reason) => {
+  try {
+    return await expenseService.rejectExpense(db, expenseId, reason);
+  } catch (error) {
+    console.error('Error rejecting expense:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:get-recurring', async (event, filters = {}) => {
+  try {
+    return await expenseService.getRecurringExpenses(db, filters);
+  } catch (error) {
+    console.error('Error getting recurring expenses:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:create-recurring', async (event, recurringData) => {
+  try {
+    return await expenseService.createRecurringExpense(db, recurringData);
+  } catch (error) {
+    console.error('Error creating recurring expense:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:update-recurring', async (event, recurringId, recurringData) => {
+  try {
+    return await expenseService.updateRecurringExpense(db, recurringId, recurringData);
+  } catch (error) {
+    console.error('Error updating recurring expense:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:delete-recurring', async (event, recurringId) => {
+  try {
+    return await expenseService.deleteRecurringExpense(db, recurringId);
+  } catch (error) {
+    console.error('Error deleting recurring expense:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:process-recurring', async (event, recurringId) => {
+  try {
+    return await expenseService.processRecurringExpense(db, recurringId);
+  } catch (error) {
+    console.error('Error processing recurring expense:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:upload-receipt', async (event, expenseId, receiptData) => {
+  try {
+    return await expenseService.uploadReceipt(db, expenseId, receiptData);
+  } catch (error) {
+    console.error('Error uploading receipt:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:get-receipts', async (event, expenseId) => {
+  try {
+    return await expenseService.getReceipts(db, expenseId);
+  } catch (error) {
+    console.error('Error getting receipts:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:delete-receipt', async (event, receiptId) => {
+  try {
+    return await expenseService.deleteReceipt(db, receiptId);
+  } catch (error) {
+    console.error('Error deleting receipt:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:get-summary', async (event, filters = {}) => {
+  try {
+    return await expenseService.getExpenseSummary(db, filters);
+  } catch (error) {
+    console.error('Error getting expense summary:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:get-by-category', async (event, filters = {}) => {
+  try {
+    return await expenseService.getExpensesByCategory(db, filters);
+  } catch (error) {
+    console.error('Error getting expenses by category:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:get-vendor-expenses', async (event, vendorId, filters = {}) => {
+  try {
+    return await expenseService.getExpensesByVendor(db, vendorId, filters);
+  } catch (error) {
+    console.error('Error getting vendor expenses:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('expense:export', async (event, filters = {}) => {
+  try {
+    return await expenseService.exportExpenses(db, filters);
+  } catch (error) {
+    console.error('Error exporting expenses:', error);
+    throw error;
+  }
+});
+
+// ==================== BUDGET SERVICE HANDLERS ====================
+ipcMain.handle('budget:get-all', async (event, filters = {}) => {
+  try {
+    return await budgetService.getAllBudgets(db, filters);
+  } catch (error) {
+    console.error('Error getting budgets:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('budget:get-by-id', async (event, budgetId) => {
+  try {
+    return await budgetService.getBudgetById(db, budgetId);
+  } catch (error) {
+    console.error('Error getting budget:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('budget:create', async (event, budgetData) => {
+  try {
+    return await budgetService.createBudget(db, budgetData);
+  } catch (error) {
+    console.error('Error creating budget:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('budget:update', async (event, budgetId, budgetData) => {
+  try {
+    return await budgetService.updateBudget(db, budgetId, budgetData);
+  } catch (error) {
+    console.error('Error updating budget:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('budget:delete', async (event, budgetId) => {
+  try {
+    return await budgetService.deleteBudget(db, budgetId);
+  } catch (error) {
+    console.error('Error deleting budget:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('budget:get-summary', async (event, filters = {}) => {
+  try {
+    return await budgetService.getBudgetSummary(db, filters);
+  } catch (error) {
+    console.error('Error getting budget summary:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('budget:update-variance', async (event, budgetId) => {
+  try {
+    return await budgetService.updateBudgetVariance(db, budgetId);
+  } catch (error) {
+    console.error('Error updating budget variance:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('budget:get-alerts', async (event) => {
+  try {
+    return await budgetService.getBudgetAlerts(db);
+  } catch (error) {
+    console.error('Error getting budget alerts:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('budget:export', async (event, filters = {}) => {
+  try {
+    return await budgetService.exportBudgets(db, filters);
+  } catch (error) {
+    console.error('Error exporting budgets:', error);
+    throw error;
+  }
+});
+
+// ==================== VENDOR SERVICE HANDLERS ====================
+ipcMain.handle('vendor:get-all', async (event, filters = {}) => {
+  try {
+    return await vendorService.getAllVendors(db, filters);
+  } catch (error) {
+    console.error('Error getting vendors:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('vendor:get-by-id', async (event, vendorId) => {
+  try {
+    return await vendorService.getVendorById(db, vendorId);
+  } catch (error) {
+    console.error('Error getting vendor:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('vendor:create', async (event, vendorData) => {
+  try {
+    return await vendorService.createVendor(db, vendorData);
+  } catch (error) {
+    console.error('Error creating vendor:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('vendor:update', async (event, vendorId, vendorData) => {
+  try {
+    return await vendorService.updateVendor(db, vendorId, vendorData);
+  } catch (error) {
+    console.error('Error updating vendor:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('vendor:delete', async (event, vendorId) => {
+  try {
+    return await vendorService.deleteVendor(db, vendorId);
+  } catch (error) {
+    console.error('Error deleting vendor:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('vendor:add-contact', async (event, vendorId, contactData) => {
+  try {
+    return await vendorService.addVendorContact(db, vendorId, contactData);
+  } catch (error) {
+    console.error('Error adding vendor contact:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('vendor:delete-contact', async (event, contactId) => {
+  try {
+    return await vendorService.deleteVendorContact(db, contactId);
+  } catch (error) {
+    console.error('Error deleting vendor contact:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('vendor:get-summary', async (event, filters = {}) => {
+  try {
+    return await vendorService.getVendorSummary(db, filters);
+  } catch (error) {
+    console.error('Error getting vendor summary:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('vendor:export', async (event, filters = {}) => {
+  try {
+    return await vendorService.exportVendors(db, filters);
+  } catch (error) {
+    console.error('Error exporting vendors:', error);
+    throw error;
+  }
+});
+
+// Purchase Order Handlers
+ipcMain.handle('po:get-all', async (event, filters = {}) => {
+  try {
+    return await vendorService.getAllPurchaseOrders(db, filters);
+  } catch (error) {
+    console.error('Error getting purchase orders:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('po:get-by-id', async (event, poId) => {
+  try {
+    return await vendorService.getPurchaseOrderById(db, poId);
+  } catch (error) {
+    console.error('Error getting purchase order:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('po:create', async (event, poData) => {
+  try {
+    return await vendorService.createPurchaseOrder(db, poData);
+  } catch (error) {
+    console.error('Error creating purchase order:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('po:update', async (event, poId, poData) => {
+  try {
+    return await vendorService.updatePurchaseOrder(db, poId, poData);
+  } catch (error) {
+    console.error('Error updating purchase order:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('po:cancel', async (event, poId, reason) => {
+  try {
+    return await vendorService.cancelPurchaseOrder(db, poId, reason);
+  } catch (error) {
+    console.error('Error cancelling purchase order:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('po:receive', async (event, poId, items) => {
+  try {
+    return await vendorService.receivePurchaseOrderItems(db, poId, items);
+  } catch (error) {
+    console.error('Error receiving purchase order:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('po:get-vendor-summary', async (event, vendorId) => {
+  try {
+    return await vendorService.getVendorPurchaseSummary(db, vendorId);
+  } catch (error) {
+    console.error('Error getting vendor purchase summary:', error);
+    throw error;
+  }
+});
+
+// ==================== PROJECT SERVICE HANDLERS ====================
+ipcMain.handle('project:get-all', async (event, filters = {}) => {
+  try {
+    return await projectService.getAllProjects(db, filters);
+  } catch (error) {
+    console.error('Error getting projects:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('project:get-by-id', async (event, projectId) => {
+  try {
+    return await projectService.getProjectById(db, projectId);
+  } catch (error) {
+    console.error('Error getting project:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('project:create', async (event, projectData) => {
+  try {
+    return await projectService.createProject(db, projectData);
+  } catch (error) {
+    console.error('Error creating project:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('project:update', async (event, projectId, projectData) => {
+  try {
+    return await projectService.updateProject(db, projectId, projectData);
+  } catch (error) {
+    console.error('Error updating project:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('project:delete', async (event, projectId) => {
+  try {
+    return await projectService.deleteProject(db, projectId);
+  } catch (error) {
+    console.error('Error deleting project:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('project:add-task', async (event, projectId, taskData) => {
+  try {
+    return await projectService.addTask(db, projectId, taskData);
+  } catch (error) {
+    console.error('Error adding task:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('project:update-task', async (event, taskId, taskData) => {
+  try {
+    return await projectService.updateTask(db, taskId, taskData);
+  } catch (error) {
+    console.error('Error updating task:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('project:delete-task', async (event, taskId) => {
+  try {
+    return await projectService.deleteTask(db, taskId);
+  } catch (error) {
+    console.error('Error deleting task:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('project:add-time-entry', async (event, projectId, entryData) => {
+  try {
+    return await projectService.addTimeEntry(db, projectId, entryData);
+  } catch (error) {
+    console.error('Error adding time entry:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('project:delete-time-entry', async (event, entryId) => {
+  try {
+    return await projectService.deleteTimeEntry(db, entryId);
+  } catch (error) {
+    console.error('Error deleting time entry:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('project:add-expense', async (event, projectId, expenseData) => {
+  try {
+    return await projectService.addProjectExpense(db, projectId, expenseData);
+  } catch (error) {
+    console.error('Error adding project expense:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('project:delete-expense', async (event, expenseId) => {
+  try {
+    return await projectService.deleteProjectExpense(db, expenseId);
+  } catch (error) {
+    console.error('Error deleting project expense:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('project:add-milestone', async (event, projectId, milestoneData) => {
+  try {
+    return await projectService.addMilestone(db, projectId, milestoneData);
+  } catch (error) {
+    console.error('Error adding milestone:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('project:update-milestone', async (event, milestoneId, milestoneData) => {
+  try {
+    return await projectService.updateMilestone(db, milestoneId, milestoneData);
+  } catch (error) {
+    console.error('Error updating milestone:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('project:get-summary', async (event, filters = {}) => {
+  try {
+    return await projectService.getProjectSummary(db, filters);
+  } catch (error) {
+    console.error('Error getting project summary:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('project:get-dashboard', async (event) => {
+  try {
+    return await projectService.getProjectDashboard(db);
+  } catch (error) {
+    console.error('Error getting project dashboard:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('project:export', async (event, filters = {}) => {
+  try {
+    return await projectService.exportProjects(db, filters);
+  } catch (error) {
+    console.error('Error exporting projects:', error);
+    throw error;
+  }
+});
+
+// ==================== USER MANAGEMENT ====================
+ipcMain.handle('auth:login', async (event, email, password) => {
+  try {
+    return await userService.authenticate(email, password);
+  } catch (error) {
+    console.error('Error logging in:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('auth:logout', async (event) => {
+  try {
+    return { success: true, message: 'Logged out successfully' };
+  } catch (error) {
+    console.error('Error logging out:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('users:get-all', async (event) => {
+  try {
+    return await userService.getAllUsers();
+  } catch (error) {
+    console.error('Error getting users:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('users:get-by-id', async (event, id) => {
+  try {
+    return await userService.getUserById(id);
+  } catch (error) {
+    console.error('Error getting user:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('users:create', async (event, userData) => {
+  try {
+    return await userService.createUser(userData);
+  } catch (error) {
+    console.error('Error creating user:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('users:update', async (event, id, updates) => {
+  try {
+    return await userService.updateUser(id, updates);
+  } catch (error) {
+    console.error('Error updating user:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('users:delete', async (event, id) => {
+  try {
+    return await userService.deleteUser(id);
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('users:get-roles', async (event) => {
+  try {
+    return await userService.getRoles();
+  } catch (error) {
+    console.error('Error getting roles:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('users:get-permissions', async (event, role) => {
+  try {
+    return await userService.getPermissions(role);
+  } catch (error) {
+    console.error('Error getting permissions:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('users:change-password', async (event, userId, oldPassword, newPassword) => {
+  try {
+    return await userService.changePassword(userId, oldPassword, newPassword);
+  } catch (error) {
+    console.error('Error changing password:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('users:reset-password', async (event, id, newPassword) => {
+  try {
+    return await userService.resetPassword(id, newPassword);
+  } catch (error) {
+    console.error('Error resetting password:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('users:set-status', async (event, id, isActive) => {
+  try {
+    return await userService.setUserStatus(id, isActive);
+  } catch (error) {
+    console.error('Error setting user status:', error);
+    throw error;
+  }
+});
+
+// ==================== E-WAY BILL ====================
+ipcMain.handle('ewaybill:create', async (event, ewaybillData) => {
+  try {
+    return await ewaybillService.createEwaybill(ewaybillData);
+  } catch (error) {
+    console.error('Error creating e-way bill:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('ewaybill:get-all', async (event, filters = {}) => {
+  try {
+    return await ewaybillService.getAllEwaybills(filters);
+  } catch (error) {
+    console.error('Error getting e-way bills:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('ewaybill:get-by-id', async (event, id) => {
+  try {
+    return await ewaybillService.getEwaybillById(id);
+  } catch (error) {
+    console.error('Error getting e-way bill:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('ewaybill:get-by-number', async (event, ewbNo) => {
+  try {
+    return await ewaybillService.getEwaybillByNumber(ewbNo);
+  } catch (error) {
+    console.error('Error getting e-way bill:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('ewaybill:update', async (event, id, updates) => {
+  try {
+    return await ewaybillService.updateEwaybill(id, updates);
+  } catch (error) {
+    console.error('Error updating e-way bill:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('ewaybill:cancel', async (event, id, reason) => {
+  try {
+    return await ewaybillService.cancelEwaybill(id, reason);
+  } catch (error) {
+    console.error('Error cancelling e-way bill:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('ewaybill:update-vehicle', async (event, id, vehicleData) => {
+  try {
+    return await ewaybillService.updateVehicle(id, vehicleData);
+  } catch (error) {
+    console.error('Error updating vehicle:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('ewaybill:generate-json', async (event, id) => {
+  try {
+    return await ewaybillService.generateJson(id);
+  } catch (error) {
+    console.error('Error generating JSON:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('ewaybill:get-stats', async (event) => {
+  try {
+    return await ewaybillService.getDashboardStats();
+  } catch (error) {
+    console.error('Error getting stats:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('ewaybill:get-hsn-codes', async (event) => {
+  try {
+    return await ewaybillService.getHsnCodes();
+  } catch (error) {
+    console.error('Error getting HSN codes:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('ewaybill:get-state-codes', async (event) => {
+  try {
+    return await ewaybillService.getStateCodes();
+  } catch (error) {
+    console.error('Error getting state codes:', error);
+    throw error;
+  }
+});
+
+// ==================== API GATEWAY ====================
+ipcMain.handle('api-gateway:get-config', async (event) => {
+  try {
+    return await apiGatewayService.getConfig();
+  } catch (error) {
+    console.error('Error getting API config:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('api-gateway:update-config', async (event, config) => {
+  try {
+    return await apiGatewayService.updateConfig(config);
+  } catch (error) {
+    console.error('Error updating API config:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('api-gateway:generate-key', async (event, name, permissions) => {
+  try {
+    return await apiGatewayService.generateApiKey(name, permissions);
+  } catch (error) {
+    console.error('Error generating API key:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('api-gateway:get-keys', async (event) => {
+  try {
+    return await apiGatewayService.getApiKeys();
+  } catch (error) {
+    console.error('Error getting API keys:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('api-gateway:revoke-key', async (event, id) => {
+  try {
+    return await apiGatewayService.revokeApiKey(id);
+  } catch (error) {
+    console.error('Error revoking API key:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('api-gateway:validate-key', async (event, plainKey) => {
+  try {
+    return await apiGatewayService.validateApiKey(plainKey);
+  } catch (error) {
+    console.error('Error validating API key:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('api-gateway:create-webhook', async (event, webhookData) => {
+  try {
+    return await apiGatewayService.createWebhook(webhookData);
+  } catch (error) {
+    console.error('Error creating webhook:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('api-gateway:get-webhooks', async (event) => {
+  try {
+    return await apiGatewayService.getWebhooks();
+  } catch (error) {
+    console.error('Error getting webhooks:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('api-gateway:update-webhook', async (event, id, updates) => {
+  try {
+    return await apiGatewayService.updateWebhook(id, updates);
+  } catch (error) {
+    console.error('Error updating webhook:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('api-gateway:delete-webhook', async (event, id) => {
+  try {
+    return await apiGatewayService.deleteWebhook(id);
+  } catch (error) {
+    console.error('Error deleting webhook:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('api-gateway:test-webhook', async (event, id) => {
+  try {
+    return await apiGatewayService.testWebhook(id);
+  } catch (error) {
+    console.error('Error testing webhook:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('api-gateway:trigger-webhook', async (event, eventName, data) => {
+  try {
+    return await apiGatewayService.triggerWebhook(eventName, data);
+  } catch (error) {
+    console.error('Error triggering webhook:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('api-gateway:get-logs', async (event, limit) => {
+  try {
+    return await apiGatewayService.getLogs(limit);
+  } catch (error) {
+    console.error('Error getting logs:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('api-gateway:get-usage-stats', async (event) => {
+  try {
+    return await apiGatewayService.getUsageStats();
+  } catch (error) {
+    console.error('Error getting usage stats:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('api-gateway:get-endpoints', async (event) => {
+  try {
+    return await apiGatewayService.getApiEndpoints();
+  } catch (error) {
+    console.error('Error getting endpoints:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('api-gateway:save-oauth', async (event, provider, tokenData) => {
+  try {
+    return await apiGatewayService.saveOAuthToken(provider, tokenData);
+  } catch (error) {
+    console.error('Error saving OAuth token:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('api-gateway:get-oauth-status', async (event, provider) => {
+  try {
+    return await apiGatewayService.getOAuthStatus(provider);
+  } catch (error) {
+    console.error('Error getting OAuth status:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('api-gateway:disconnect-oauth', async (event, provider) => {
+  try {
+    return await apiGatewayService.disconnectOAuth(provider);
+  } catch (error) {
+    console.error('Error disconnecting OAuth:', error);
+    throw error;
+  }
+});
+
+// ==================== ANALYTICS ====================
+ipcMain.handle('analytics:generate', async (event, filters = {}) => {
+  try {
+    // Get transactions from database
+    let query = 'SELECT * FROM transactions WHERE is_cancelled = 0';
+    const params = [];
+    
+    if (filters.fromDate) {
+      query += ' AND date >= ?';
+      params.push(filters.fromDate);
+    }
+    if (filters.toDate) {
+      query += ' AND date <= ?';
+      params.push(filters.toDate);
+    }
+    
+    const transactions = db.prepare(query).all(...params);
+    
+    return await analyticsService.runFullAnalysis(transactions);
+  } catch (error) {
+    console.error('Error generating analytics:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('analytics:get-cached', async (event) => {
+  try {
+    return analyticsService.getCachedAnalysis();
+  } catch (error) {
+    console.error('Error getting cached analytics:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('analytics:clear-cache', async (event) => {
+  try {
+    return analyticsService.clearCache();
+  } catch (error) {
+    console.error('Error clearing analytics cache:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('analytics:cashflow-forecast', async (event, filters = {}) => {
+  try {
+    let query = 'SELECT * FROM transactions WHERE is_cancelled = 0';
+    const params = [];
+    
+    if (filters.fromDate) {
+      query += ' AND date >= ?';
+      params.push(filters.fromDate);
+    }
+    if (filters.toDate) {
+      query += ' AND date <= ?';
+      params.push(filters.toDate);
+    }
+    
+    const transactions = db.prepare(query).all(...params);
+    return analyticsService.generateCashFlowForecast(transactions);
+  } catch (error) {
+    console.error('Error generating cash flow forecast:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('analytics:detect-anomalies', async (event, filters = {}) => {
+  try {
+    let query = 'SELECT * FROM transactions WHERE is_cancelled = 0';
+    const params = [];
+    
+    if (filters.fromDate) {
+      query += ' AND date >= ?';
+      params.push(filters.fromDate);
+    }
+    if (filters.toDate) {
+      query += ' AND date <= ?';
+      params.push(filters.toDate);
+    }
+    
+    const transactions = db.prepare(query).all(...params);
+    return analyticsService.detectAnomalies(transactions);
+  } catch (error) {
+    console.error('Error detecting anomalies:', error);
+    throw error;
+  }
+});
+
+// ==================== CURRENCY SERVICE ====================
+ipcMain.handle('currency:initialize', async (event) => {
+  try {
+    return currencyService.initializeDatabase();
+  } catch (error) {
+    console.error('Error initializing currency database:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('currency:get-currencies', async (event) => {
+  try {
+    return currencyService.getCurrencies();
+  } catch (error) {
+    console.error('Error getting currencies:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('currency:get-currency', async (event, code) => {
+  try {
+    return currencyService.getCurrencyByCode(code);
+  } catch (error) {
+    console.error('Error getting currency:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('currency:add-currency', async (event, currency) => {
+  try {
+    return currencyService.addCurrency(currency);
+  } catch (error) {
+    console.error('Error adding currency:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('currency:update-exchange-rate', async (event, fromCurrency, toCurrency, rate) => {
+  try {
+    return currencyService.updateExchangeRate(fromCurrency, toCurrency, rate);
+  } catch (error) {
+    console.error('Error updating exchange rate:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('currency:get-exchange-rates', async (event) => {
+  try {
+    return currencyService.getExchangeRates();
+  } catch (error) {
+    console.error('Error getting exchange rates:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('currency:convert', async (event, amount, fromCurrency, toCurrency) => {
+  try {
+    return currencyService.convertCurrency(amount, fromCurrency, toCurrency);
+  } catch (error) {
+    console.error('Error converting currency:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('currency:record-transaction', async (event, transaction) => {
+  try {
+    return currencyService.recordTransaction(transaction);
+  } catch (error) {
+    console.error('Error recording transaction:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('currency:get-transactions', async (event, filters = {}) => {
+  try {
+    return currencyService.getTransactions(filters);
+  } catch (error) {
+    console.error('Error getting transactions:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('currency:get-transaction', async (event, id) => {
+  try {
+    return currencyService.getTransactionById(id);
+  } catch (error) {
+    console.error('Error getting transaction:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('currency:update-transaction', async (event, id, updates) => {
+  try {
+    return currencyService.updateTransaction(id, updates);
+  } catch (error) {
+    console.error('Error updating transaction:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('currency:delete-transaction', async (event, id) => {
+  try {
+    return currencyService.deleteTransaction(id);
+  } catch (error) {
+    console.error('Error deleting transaction:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('currency:get-consolidated-report', async (event, startDate, endDate, baseCurrency) => {
+  try {
+    return currencyService.getConsolidatedReport(startDate, endDate, baseCurrency);
+  } catch (error) {
+    console.error('Error getting consolidated report:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('currency:get-settings', async (event) => {
+  try {
+    return currencyService.getSettings();
+  } catch (error) {
+    console.error('Error getting settings:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('currency:update-settings', async (event, newSettings) => {
+  try {
+    return currencyService.updateSettings(newSettings);
+  } catch (error) {
+    console.error('Error updating settings:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('currency:fetch-live-rates', async (event) => {
+  try {
+    return await currencyService.fetchLiveRates();
+  } catch (error) {
+    console.error('Error fetching live rates:', error);
+    throw error;
+  }
+});
+
+// ==================== VOICE SERVICE ====================
+ipcMain.handle('voice:initialize', async (event) => {
+  try {
+    return voiceService.initializeDatabase();
+  } catch (error) {
+    console.error('Error initializing voice database:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('voice:get-settings', async (event) => {
+  try {
+    return voiceService.getSettings();
+  } catch (error) {
+    console.error('Error getting voice settings:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('voice:update-settings', async (event, newSettings) => {
+  try {
+    return voiceService.updateSettings(newSettings);
+  } catch (error) {
+    console.error('Error updating voice settings:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('voice:get-supported-languages', async (event) => {
+  try {
+    return voiceService.getSupportedLanguages();
+  } catch (error) {
+    console.error('Error getting supported languages:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('voice:set-language-enabled', async (event, languageCode, enabled) => {
+  try {
+    return voiceService.setLanguageEnabled(languageCode, enabled);
+  } catch (error) {
+    console.error('Error setting language enabled:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('voice:get-accent-profiles', async (event) => {
+  try {
+    return voiceService.getAccentProfiles();
+  } catch (error) {
+    console.error('Error getting accent profiles:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('voice:save-accent-profile', async (event, userId, profileData) => {
+  try {
+    return voiceService.saveAccentProfile(userId, profileData);
+  } catch (error) {
+    console.error('Error saving accent profile:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('voice:get-accent-profile', async (event, userId) => {
+  try {
+    return voiceService.getAccentProfile(userId);
+  } catch (error) {
+    console.error('Error getting accent profile:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('voice:process-command', async (event, transcript, context) => {
+  try {
+    return voiceService.processCommand(transcript, context);
+  } catch (error) {
+    console.error('Error processing voice command:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('voice:get-transcription-history', async (event, limit) => {
+  try {
+    return voiceService.getTranscriptionHistory(limit);
+  } catch (error) {
+    console.error('Error getting transcription history:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('voice:clear-transcription-history', async (event) => {
+  try {
+    return voiceService.clearTranscriptionHistory();
+  } catch (error) {
+    console.error('Error clearing transcription history:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('voice:get-custom-phrases', async (event) => {
+  try {
+    return voiceService.getCustomPhrases();
+  } catch (error) {
+    console.error('Error getting custom phrases:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('voice:add-custom-phrase', async (event, phrase, command, language) => {
+  try {
+    return voiceService.addCustomPhrase(phrase, command, language);
+  } catch (error) {
+    console.error('Error adding custom phrase:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('voice:remove-custom-phrase', async (event, index) => {
+  try {
+    return voiceService.removeCustomPhrase(index);
+  } catch (error) {
+    console.error('Error removing custom phrase:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('voice:recognize-speech', async (event, audioData, config) => {
+  try {
+    return await voiceService.recognizeSpeech(audioData, config);
+  } catch (error) {
+    console.error('Error recognizing speech:', error);
+    throw error;
+  }
+});
+
+// ==================== SECURITY SERVICE ====================
+ipcMain.handle('security:initialize', async (event) => {
+  try {
+    return securityService.initializeDatabase();
+  } catch (error) {
+    console.error('Error initializing security database:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('security:get-profile', async (event) => {
+  try {
+    return securityService.getSecurityProfile();
+  } catch (error) {
+    console.error('Error getting security profile:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('security:update-profile', async (event, updates) => {
+  try {
+    return securityService.updateSecurityProfile(updates);
+  } catch (error) {
+    console.error('Error updating security profile:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('security:generate-totp-secret', async (event, userEmail) => {
+  try {
+    return await securityService.generateTotpSecret(userEmail);
+  } catch (error) {
+    console.error('Error generating TOTP secret:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('security:verify-and-enable-totp', async (event, token, userEmail) => {
+  try {
+    return securityService.verifyAndEnableTotp(token, userEmail);
+  } catch (error) {
+    console.error('Error verifying and enabling TOTP:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('security:disable-totp', async (event, token) => {
+  try {
+    return securityService.disableTotp(token);
+  } catch (error) {
+    console.error('Error disabling TOTP:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('security:verify-totp', async (event, token) => {
+  try {
+    return securityService.verifyTotp(token);
+  } catch (error) {
+    console.error('Error verifying TOTP:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('security:get-sessions', async (event) => {
+  try {
+    return securityService.getActiveSessions();
+  } catch (error) {
+    console.error('Error getting sessions:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('security:create-session', async (event, sessionInfo) => {
+  try {
+    return securityService.createSession(sessionInfo);
+  } catch (error) {
+    console.error('Error creating session:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('security:revoke-session', async (event, sessionId) => {
+  try {
+    return securityService.revokeSession(sessionId);
+  } catch (error) {
+    console.error('Error revoking session:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('security:revoke-all-other-sessions', async (event) => {
+  try {
+    return securityService.revokeAllOtherSessions();
+  } catch (error) {
+    console.error('Error revoking all sessions:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('security:get-activity-log', async (event, limit) => {
+  try {
+    return securityService.getActivityLog(limit);
+  } catch (error) {
+    console.error('Error getting activity log:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('security:get-recovery-codes', async (event) => {
+  try {
+    return securityService.getRecoveryCodes();
+  } catch (error) {
+    console.error('Error getting recovery codes:', error);
+    throw error;
+  }
+});
+
+// ==================== NOTIFICATION SERVICE ====================
+ipcMain.handle('notification:initialize', async (event) => {
+  try {
+    return notificationService.initializeDatabase();
+  } catch (error) {
+    console.error('Error initializing notification database:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('notification:get-all', async (event, filters) => {
+  try {
+    return notificationService.getNotifications(filters);
+  } catch (error) {
+    console.error('Error getting notifications:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('notification:get-unread-count', async (event) => {
+  try {
+    return notificationService.getUnreadCount();
+  } catch (error) {
+    console.error('Error getting unread count:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('notification:mark-read', async (event, notificationId) => {
+  try {
+    return notificationService.markAsRead(notificationId);
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('notification:delete', async (event, notificationId) => {
+  try {
+    return notificationService.deleteNotification(notificationId);
+  } catch (error) {
+    console.error('Error deleting notification:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('notification:create', async (event, notification) => {
+  try {
+    return notificationService.createNotification(notification);
+  } catch (error) {
+    console.error('Error creating notification:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('notification:get-alert-rules', async (event) => {
+  try {
+    return notificationService.getAlertRules();
+  } catch (error) {
+    console.error('Error getting alert rules:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('notification:update-alert-rule', async (event, ruleId, updates) => {
+  try {
+    return notificationService.updateAlertRule(ruleId, updates);
+  } catch (error) {
+    console.error('Error updating alert rule:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('notification:toggle-alert-rule', async (event, ruleId) => {
+  try {
+    return notificationService.toggleAlertRule(ruleId);
+  } catch (error) {
+    console.error('Error toggling alert rule:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('notification:get-settings', async (event) => {
+  try {
+    return notificationService.getSettings();
+  } catch (error) {
+    console.error('Error getting notification settings:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('notification:update-settings', async (event, updates) => {
+  try {
+    return notificationService.updateSettings(updates);
+  } catch (error) {
+    console.error('Error updating notification settings:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('notification:poll-alerts', async (event) => {
+  try {
+    return notificationService.pollAlerts();
+  } catch (error) {
+    console.error('Error polling alerts:', error);
+    throw error;
+  }
+});
+
+// ==================== AI SERVICE ====================
+ipcMain.handle('ai:initialize', async (event) => {
+  try {
+    return aiService.initializeAIService();
+  } catch (error) {
+    console.error('Error initializing AI service:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('ai:get-forecast', async (event, days = 30) => {
+  try {
+    return aiService.getCashFlowForecast(days);
+  } catch (error) {
+    console.error('Error getting cash flow forecast:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('ai:get-sales-prediction', async (event) => {
+  try {
+    return aiService.getSalesPrediction();
+  } catch (error) {
+    console.error('Error getting sales prediction:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('ai:get-expense-prediction', async (event) => {
+  try {
+    return aiService.getExpensePrediction();
+  } catch (error) {
+    console.error('Error getting expense prediction:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('ai:get-working-capital', async (event) => {
+  try {
+    return aiService.getWorkingCapitalAnalysis();
+  } catch (error) {
+    console.error('Error getting working capital analysis:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('ai:auto-categorize', async (event) => {
+  try {
+    return aiService.autoCategorizeTransactions();
+  } catch (error) {
+    console.error('Error auto-categorizing transactions:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('ai:apply-category', async (event, transactionId, category) => {
+  try {
+    return aiService.applyCategorySuggestion(transactionId, category);
+  } catch (error) {
+    console.error('Error applying category suggestion:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('ai:detect-anomalies', async (event) => {
+  try {
+    return aiService.detectAnomalies();
+  } catch (error) {
+    console.error('Error detecting anomalies:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('ai:get-insights', async (event) => {
+  try {
+    return aiService.getAIInsights();
+  } catch (error) {
+    console.error('Error getting AI insights:', error);
+    throw error;
+  }
 });
 
 // ==================== REPORTS ====================
@@ -2025,7 +3733,7 @@ Generated by Talk to Your Accounts
     fs.unlinkSync(tempPath);
     fs.unlinkSync(encryptedPath);
 
-    logAudit(db, 'EXPORT', 'encrypted', null, null, { format, filename }, 'Encrypted data export completed');
+    logAudit( 'EXPORT', 'encrypted', null, null, { format, filename }, 'Encrypted data export completed');
 
     return {
       success: true,
@@ -2155,7 +3863,7 @@ ipcMain.handle('import-data', (event, data) => {
       }
     }
     
-    logAudit(db, 'IMPORT', 'system', null, null, { count: imported }, 'Data import completed');
+    logAudit( 'IMPORT', 'system', null, null, { count: imported }, 'Data import completed');
   } catch (error) {
     throw new Error('Import failed: ' + error.message);
   }
@@ -2250,7 +3958,7 @@ ipcMain.handle('create-user', (event, userData) => {
   
   const result = stmt.run(username, hash, salt, role || 'editor');
   
-  logAudit(db, 'CREATE', 'users', result.lastInsertRowid, null, { username, role }, `Created user: ${username}`);
+  logAudit( 'CREATE', 'users', result.lastInsertRowid, null, { username, role }, `Created user: ${username}`);
   
   return { 
     success: true, 
@@ -2296,7 +4004,7 @@ ipcMain.handle('authenticate', (event, username, pin) => {
         db.prepare('UPDATE users SET failed_attempts = ?, locked_until = ? WHERE id = ?')
           .run(failedAttempts, lockedUntil, user.id);
         
-        logAudit(db, 'SECURITY', 'users', user.id, { failed_attempts: failedAttempts - 1 }, 
+        logAudit( 'SECURITY', 'users', user.id, { failed_attempts: failedAttempts - 1 }, 
           { failed_attempts, locked_until: lockedUntil }, `Account locked due to failed login attempts`);
         
         return { 
@@ -2308,7 +4016,7 @@ ipcMain.handle('authenticate', (event, username, pin) => {
       
       db.prepare('UPDATE users SET failed_attempts = ? WHERE id = ?').run(failedAttempts, user.id);
       
-      logAudit(db, 'LOGIN_FAILED', 'users', user.id, null, { failed_attempts }, `Failed login attempt for ${username}`);
+      logAudit( 'LOGIN_FAILED', 'users', user.id, null, { failed_attempts }, `Failed login attempt for ${username}`);
       
       return { 
         success: false, 
@@ -2333,7 +4041,7 @@ ipcMain.handle('authenticate', (event, username, pin) => {
     // Clean up expired sessions
     db.prepare('DELETE FROM sessions WHERE expires_at < CURRENT_TIMESTAMP OR is_active = 0').run();
     
-    logAudit(db, 'LOGIN', 'users', user.id, null, { session_created: true }, `User ${username} logged in`);
+    logAudit( 'LOGIN', 'users', user.id, null, { session_created: true }, `User ${username} logged in`);
     
     return {
       success: true,
@@ -2377,7 +4085,7 @@ ipcMain.handle('update-user-pin', (event, userId, oldPin, newPin) => {
   
   db.prepare('UPDATE users SET pin_hash = ?, pin_salt = ? WHERE id = ?').run(hash, salt, userId);
   
-  logAudit(db, 'UPDATE', 'users', userId, null, { pin_changed: true }, `PIN changed for user ${user.username}`);
+  logAudit( 'UPDATE', 'users', userId, null, { pin_changed: true }, `PIN changed for user ${user.username}`);
   
   return { success: true };
 });
@@ -2395,7 +4103,7 @@ ipcMain.handle('delete-user', (event, userId) => {
   // Invalidate all sessions for this user
   db.prepare('UPDATE sessions SET is_active = 0 WHERE user_id = ?').run(userId);
   
-  logAudit(db, 'DELETE', 'users', userId, { is_active: 1 }, { is_active: 0 }, `Deactivated user ${user.username}`);
+  logAudit( 'DELETE', 'users', userId, { is_active: 1 }, { is_active: 0 }, `Deactivated user ${user.username}`);
   
   return { success: true };
 });
@@ -2419,7 +4127,7 @@ ipcMain.handle('create-gst-reminder', (event, reminder) => {
     reminder.notes || null
   );
   
-  logAudit(db, 'CREATE', 'gst_reminders', result.lastInsertRowid, null, reminder, `Created GST reminder: ${reminder.reminder_type}`);
+  logAudit( 'CREATE', 'gst_reminders', result.lastInsertRowid, null, reminder, `Created GST reminder: ${reminder.reminder_type}`);
   
   return result.lastInsertRowid;
 });
@@ -2472,7 +4180,7 @@ ipcMain.handle('create-bank-statement', (event, data) => {
     data.created_by || 'system'
   );
 
-  logAudit(db, 'CREATE', 'bank_statements', result.lastInsertRowid, null, data, `Created bank statement record for ${data.bank_name}`);
+  logAudit( 'CREATE', 'bank_statements', result.lastInsertRowid, null, data, `Created bank statement record for ${data.bank_name}`);
 
   return result.lastInsertRowid;
 });
@@ -2541,7 +4249,7 @@ ipcMain.handle('process-bank-statement', (event, id) => {
     WHERE id = ?
   `).run(bankTxns.length, matched, unmatched, id);
 
-  logAudit(db, 'PROCESS', 'bank_statements', id, null, { matched, unmatched }, `Processed bank statement with ${matched} matches`);
+  logAudit( 'PROCESS', 'bank_statements', id, null, { matched, unmatched }, `Processed bank statement with ${matched} matches`);
 
   return { matched, unmatched };
 });
@@ -2561,7 +4269,7 @@ ipcMain.handle('reconcile-transaction', (event, transactionId, bankTxnId) => {
   db.prepare('UPDATE transactions SET is_matched = 1 WHERE id = ?').run(transactionId);
   db.prepare('UPDATE bank_transactions SET matched = 1, transaction_id = ? WHERE id = ?').run(transactionId, bankTxnId);
 
-  logAudit(db, 'RECONCILE', 'transactions', transactionId, null, { bank_txn_id: bankTxnId }, 'Manual reconciliation completed');
+  logAudit( 'RECONCILE', 'transactions', transactionId, null, { bank_txn_id: bankTxnId }, 'Manual reconciliation completed');
 
   return true;
 });
@@ -2699,7 +4407,7 @@ ipcMain.handle('voice-create-payment', (event, data) => {
         .run(status, transactionId);
     }
 
-    logAudit(db, 'CREATE', 'payments', result.lastInsertRowid, null, data, 'Voice-initiated payment');
+    logAudit( 'CREATE', 'payments', result.lastInsertRowid, null, data, 'Voice-initiated payment');
 
     return { success: true, paymentId: result.lastInsertRowid };
   } catch (error) {
@@ -2777,7 +4485,7 @@ ipcMain.handle('reconciliation:reconcile-single', (event, data) => {
     // Mark as matched
     db.prepare('UPDATE transactions SET is_matched = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(match.id);
 
-    logAudit(db, 'RECONCILE', 'transactions', match.id, null, { 
+    logAudit( 'RECONCILE', 'transactions', match.id, null, { 
       amount, 
       party_name, 
       matched_via: 'voice' 
@@ -2834,7 +4542,7 @@ ipcMain.handle('reconciliation:reconcile-all', (event, data) => {
       reconciledCount = unreconciled.length;
     }
 
-    logAudit(db, 'RECONCILE', 'transactions', null, null, { 
+    logAudit( 'RECONCILE', 'transactions', null, null, { 
       count: reconciledCount, 
       party_id, 
       date,
@@ -2895,7 +4603,7 @@ ipcMain.handle('reconciliation:reconcile-by-party', (event, data) => {
 
     const totalAmount = transactions.reduce((sum, t) => sum + (t.total_amount || 0), 0);
 
-    logAudit(db, 'RECONCILE', 'transactions', party.id, null, { 
+    logAudit( 'RECONCILE', 'transactions', party.id, null, { 
       party_name: party.name,
       count: transactions.length,
       total_amount: totalAmount 
@@ -2943,7 +4651,7 @@ ipcMain.handle('reconciliation:reconcile-by-date', (event, data) => {
 
     const totalAmount = transactions.reduce((sum, t) => sum + (t.total_amount || 0), 0);
 
-    logAudit(db, 'RECONCILE', 'transactions', null, null, { 
+    logAudit( 'RECONCILE', 'transactions', null, null, { 
       date,
       count: transactions.length,
       total_amount: totalAmount 
@@ -2980,7 +4688,7 @@ ipcMain.handle('reconciliation:mark-reconciled', (event, data) => {
 
     db.prepare('UPDATE transactions SET is_matched = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(transaction_id);
 
-    logAudit(db, 'RECONCILE', 'transactions', transaction_id, null, null, 'Voice: marked as reconciled');
+    logAudit( 'RECONCILE', 'transactions', transaction_id, null, null, 'Voice: marked as reconciled');
 
     return {
       success: true,
@@ -3008,7 +4716,7 @@ ipcMain.handle('reconciliation:unreconcile', (event, data) => {
 
     db.prepare('UPDATE transactions SET is_matched = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(transaction_id);
 
-    logAudit(db, 'UNRECONCILE', 'transactions', transaction_id, null, null, 'Voice: unreconciled transaction');
+    logAudit( 'UNRECONCILE', 'transactions', transaction_id, null, null, 'Voice: unreconciled transaction');
 
     return {
       success: true,
@@ -3340,7 +5048,7 @@ ipcMain.handle('reconciliation:flag', (event, data) => {
       UPDATE transactions SET narration = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
     `).run(`[FLAG] ${transaction.narration || ''} - Flagged via voice command`, transaction_id);
 
-    logAudit(db, 'FLAG', 'transactions', transaction_id, null, null, 'Voice: flagged transaction');
+    logAudit( 'FLAG', 'transactions', transaction_id, null, null, 'Voice: flagged transaction');
 
     return {
       success: true,
@@ -3433,7 +5141,7 @@ ipcMain.handle('apply-recommendation', (event, id) => {
   db.prepare('UPDATE recommendations SET is_applied = 1, applied_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
 
   const recommendation = db.prepare('SELECT * FROM recommendations WHERE id = ?').get(id);
-  logAudit(db, 'APPLY', 'recommendations', id, null, recommendation, `Applied recommendation: ${recommendation.title}`);
+  logAudit( 'APPLY', 'recommendations', id, null, recommendation, `Applied recommendation: ${recommendation.title}`);
 
   return true;
 });
@@ -3688,7 +5396,7 @@ ipcMain.handle('detect-errors', (event, types = []) => {
   }
 
   // Log error detection
-  logAudit(db, 'ERROR_CHECK', 'system', null, null, { types, error_count: errors.length }, 'Ran error detection checks');
+  logAudit( 'ERROR_CHECK', 'system', null, null, { types, error_count: errors.length }, 'Ran error detection checks');
 
   return errors;
 });
@@ -3717,7 +5425,7 @@ ipcMain.handle('fix-error', (event, errorType, entityId, fixData) => {
       break;
   }
 
-  logAudit(db, 'ERROR_FIX', 'transactions', entityId, null, { error_type: errorType, fix_data: fixData }, `Fixed error: ${errorType}`);
+  logAudit( 'ERROR_FIX', 'transactions', entityId, null, { error_type: errorType, fix_data: fixData }, `Fixed error: ${errorType}`);
 
   return true;
 });
@@ -3799,6 +5507,52 @@ ipcMain.handle('search-audit-logs', (event, query, filters = {}) => {
   params.push(filters.limit || 100);
 
   return db.prepare(sql).all(...params);
+});
+
+// ==================== AUDIT SERVICE IPC HANDLERS ====================
+
+// Query audit logs using the new AuditService
+ipcMain.handle('audit/query', (event, filters = {}) => {
+  try {
+    const logs = auditService.query(filters);
+    return { success: true, logs };
+  } catch (error) {
+    console.error('Audit query error:', error);
+    return { success: false, error: error.message, logs: [] };
+  }
+});
+
+// Get audit summary using the new AuditService
+ipcMain.handle('audit/get-summary', (event, period = 'week') => {
+  try {
+    const summary = auditService.getSummary(period);
+    return { success: true, summary };
+  } catch (error) {
+    console.error('Audit summary error:', error);
+    return { success: false, error: error.message, summary: null };
+  }
+});
+
+// Log an audit event via IPC (for frontend-initiated actions)
+ipcMain.handle('audit/log', (event, params) => {
+  try {
+    const result = auditService.log(params);
+    return { success: result };
+  } catch (error) {
+    console.error('Audit log error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Clean up old audit logs
+ipcMain.handle('audit/cleanup', (event, daysToKeep = 365) => {
+  try {
+    const deletedCount = auditService.cleanup(daysToKeep);
+    return { success: true, deletedCount };
+  } catch (error) {
+    console.error('Audit cleanup error:', error);
+    return { success: false, error: error.message, deletedCount: 0 };
+  }
 });
 
 // ==================== SUBSCRIPTION MANAGEMENT ====================
@@ -4003,7 +5757,7 @@ ipcMain.handle('invoice:save', (event, data) => {
       invoiceScanningDB.addInvoiceLines(lineItems);
     }
     
-    logAudit(db, 'CREATE', 'invoice_scanning', headerId, null, { invoice_number: header.invoice_number }, 'Scanned and saved invoice');
+    logAudit( 'CREATE', 'invoice_scanning', headerId, null, { invoice_number: header.invoice_number }, 'Scanned and saved invoice');
     
     return { success: true, id: headerId };
   } catch (error) {
@@ -4067,7 +5821,7 @@ ipcMain.handle('invoice:delete', (event, id) => {
     }
     
     invoiceScanningDB.deleteInvoiceHeader(id);
-    logAudit(db, 'DELETE', 'invoice_scanning', id, { invoice_number: invoice.invoice_number }, null, 'Deleted scanned invoice');
+    logAudit( 'DELETE', 'invoice_scanning', id, { invoice_number: invoice.invoice_number }, null, 'Deleted scanned invoice');
     
     return { success: true };
   } catch (error) {
@@ -4131,7 +5885,7 @@ ipcMain.handle('invoice:import', (event, id) => {
     });
     
     if (result.success) {
-      logAudit(db, 'IMPORT', 'invoice_scanning', id, null, { transaction_count: result.transactionCount }, 'Imported invoice to transactions');
+      logAudit( 'IMPORT', 'invoice_scanning', id, null, { transaction_count: result.transactionCount }, 'Imported invoice to transactions');
     }
     
     return result;
@@ -4533,6 +6287,30 @@ app.whenReady().then(() => {
   invoiceScanningDB.initialize(app.getPath('userData'));
   console.log('Invoice Scanning DB initialized at:', path.join(app.getPath('userData'), 'invoice_scanning.db'));
   
+  // Initialize E-Invoice Service
+  einvoiceService.initialize(db);
+  console.log('E-Invoice Service initialized');
+  
+  // Initialize GST Return Service
+  gstReturnService.initialize(db);
+  console.log('GST Return Service initialized');
+  
+  // Initialize Inventory Service
+  inventoryService.initialize(db);
+  console.log('Inventory Service initialized');
+  
+  // Initialize Report Engine
+  reportEngine = new ReportEngine(db);
+  console.log('Report Engine initialized');
+  
+  // Initialize Banking Service
+  bankingService.initialize(db);
+  console.log('Banking Service initialized');
+  
+  // Initialize Payment Gateway Service
+  paymentGatewayService.initialize(db);
+  console.log('Payment Gateway Service initialized');
+  
   createWindow();
   
   // Initialize Voice Module
@@ -4569,3 +6347,1275 @@ function initializeVoiceModule() {
     // Voice module is optional - continue without it
   }
 }
+
+// ==================== INTEGRATION SERVICES ====================
+// Initialize the integration service
+let integrationServiceInitialized = false;
+
+async function initializeIntegrationService() {
+  if (integrationServiceInitialized) {
+    return { success: true };
+  }
+  
+  try {
+    const integrationService = require(path.join(__dirname, '../src/services/integrationService'));
+    const result = await integrationService.initialize({
+      dbPath: path.join(__dirname, '../src/db'),
+      dataDir: app.getPath('userData')
+    });
+    
+    integrationServiceInitialized = result.success;
+    console.log('[IntegrationService] Main process initialized:', result.success ? 'success' : result.error);
+    return result;
+  } catch (error) {
+    console.error('[IntegrationService] Initialization error:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+// ==================== E-INVOICE ====================
+
+// Generate e-invoice for a transaction
+ipcMain.handle('einvoice:generate', async (event, transactionId) => {
+  try {
+    const result = await einvoiceService.generateEinvoice(transactionId);
+    if (result.success) {
+      logAudit('CREATE', 'einvoice', transactionId, null, result, `Generated e-invoice IRN: ${result.irn}`);
+    }
+    return result;
+  } catch (error) {
+    console.error('E-invoice generation error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Generate e-waybill for a transaction
+ipcMain.handle('einvoice:generate-ewaybill', async (event, transactionId, transport) => {
+  try {
+    const result = await einvoiceService.generateEwaybill(transactionId, transport);
+    if (result.success) {
+      logAudit('CREATE', 'ewaybill', transactionId, null, result, `Generated e-waybill: ${result.ewbNo}`);
+    }
+    return result;
+  } catch (error) {
+    console.error('E-waybill generation error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get e-invoice details
+ipcMain.handle('einvoice:get', (event, transactionId) => {
+  try {
+    return einvoiceService.getEinvoice(transactionId);
+  } catch (error) {
+    console.error('E-invoice get error:', error);
+    return null;
+  }
+});
+
+// List e-invoices
+ipcMain.handle('einvoice:list', (event, filters) => {
+  try {
+    return einvoiceService.listEinvoices(filters);
+  } catch (error) {
+    console.error('E-invoice list error:', error);
+    return [];
+  }
+});
+
+// Get pending invoices (transactions without e-invoice)
+ipcMain.handle('einvoice:get-pending', (event, filters) => {
+  try {
+    return einvoiceService.getPendingInvoices(filters);
+  } catch (error) {
+    console.error('E-invoice pending error:', error);
+    return [];
+  }
+});
+
+// Get e-invoice configuration
+ipcMain.handle('einvoice:get-config', () => {
+  try {
+    return einvoiceService.getConfig();
+  } catch (error) {
+    console.error('E-invoice config error:', error);
+    return null;
+  }
+});
+
+// Save e-invoice configuration
+ipcMain.handle('einvoice:save-config', (event, config) => {
+  try {
+    const result = einvoiceService.saveConfig(config);
+    if (result.success) {
+      logAudit('UPDATE', 'einvoice_config', 1, null, config, 'E-invoice configuration updated');
+    }
+    return result;
+  } catch (error) {
+    console.error('E-invoice config save error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Cancel e-invoice
+ipcMain.handle('einvoice:cancel', async (event, transactionId, reason) => {
+  try {
+    const result = await einvoiceService.cancelEinvoice(transactionId, reason);
+    if (result.success) {
+      logAudit('CANCEL', 'einvoice', transactionId, null, { reason }, 'E-invoice cancelled');
+    }
+    return result;
+  } catch (error) {
+    console.error('E-invoice cancel error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Validate GSTIN
+ipcMain.handle('einvoice:validate-gstin', (event, gstin) => {
+  return einvoiceService.validateGSTIN(gstin);
+});
+
+// Validate HSN code
+ipcMain.handle('einvoice:validate-hsn', (event, hsnCode) => {
+  return einvoiceService.validateHSN(hsnCode);
+});
+
+// ==================== GST RETURN HANDLERS ====================
+
+// Get GSTR-1 data
+ipcMain.handle('gst:get-gstr1', (event, filters) => {
+  try {
+    const { startDate, endDate } = filters || {};
+    return gstReturnService.getGSTR1Data({ 
+      startDate: startDate || getDefaultStartDate(), 
+      endDate: endDate || getDefaultEndDate() 
+    });
+  } catch (error) {
+    console.error('GSTR-1 error:', error);
+    return null;
+  }
+});
+
+// Get GSTR-3B data
+ipcMain.handle('gst:get-gstr3b', (event, filters) => {
+  try {
+    const { startDate, endDate } = filters || {};
+    return gstReturnService.getGSTR3BData({ 
+      startDate: startDate || getDefaultStartDate(), 
+      endDate: endDate || getDefaultEndDate() 
+    });
+  } catch (error) {
+    console.error('GSTR-3B error:', error);
+    return null;
+  }
+});
+
+// Export GSTR-1 JSON
+ipcMain.handle('gst:export-gstr1-json', (event, filters) => {
+  try {
+    return gstReturnService.exportGSTR1JSON(filters);
+  } catch (error) {
+    console.error('GSTR-1 export error:', error);
+    return null;
+  }
+});
+
+// Export GSTR-3B JSON
+ipcMain.handle('gst:export-gstr3b-json', (event, filters) => {
+  try {
+    return gstReturnService.exportGSTR3BJSON(filters);
+  } catch (error) {
+    console.error('GSTR-3B export error:', error);
+    return null;
+  }
+});
+
+// Get ITC Reconciliation
+ipcMain.handle('gst:get-itc-reconciliation', (event, filters) => {
+  try {
+    const { startDate, endDate } = filters || {};
+    return gstReturnService.getITCReconciliation({ 
+      startDate: startDate || getDefaultStartDate(), 
+      endDate: endDate || getDefaultEndDate() 
+    });
+  } catch (error) {
+    console.error('ITC reconciliation error:', error);
+    return null;
+  }
+});
+
+// Get GST Liability Summary
+ipcMain.handle('gst:get-liability-summary', (event, filters) => {
+  try {
+    const { startDate, endDate } = filters || {};
+    return gstReturnService.getGSTLiabilitySummary(
+      startDate || getDefaultStartDate(), 
+      endDate || getDefaultEndDate()
+    );
+  } catch (error) {
+    console.error('GST liability summary error:', error);
+    return null;
+  }
+});
+
+// ==================== CASH LEAK DETECTION IPC HANDLERS ====================
+
+// Run full cash leak analysis
+ipcMain.handle('leak:run-analysis', async (event, options = {}) => {
+  try {
+    // Ensure tables exist
+    dbManager.createLeakDetectionTables();
+    
+    // Run the analysis
+    const results = dbManager.runCashLeakAnalysis();
+    return { success: true, data: results };
+  } catch (error) {
+    console.error('Cash leak analysis error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get leak anomalies
+ipcMain.handle('leak:get-anomalies', async (event, filters = {}) => {
+  try {
+    const anomalies = dbManager.getLeakAnomalies(filters);
+    return { success: true, data: anomalies };
+  } catch (error) {
+    console.error('Get leak anomalies error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Create leak anomaly
+ipcMain.handle('leak:create-anomaly', async (event, data) => {
+  try {
+    const result = dbManager.createLeakAnomaly(data);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Create leak anomaly error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Resolve leak anomaly
+ipcMain.handle('leak:resolve-anomaly', async (event, id, resolutionNotes) => {
+  try {
+    const result = dbManager.resolveLeakAnomaly(id, resolutionNotes);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Resolve leak anomaly error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get leak configuration
+ipcMain.handle('leak:get-config', async (event, key = null) => {
+  try {
+    const config = dbManager.getLeakConfig(key);
+    return { success: true, data: config };
+  } catch (error) {
+    console.error('Get leak config error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Update leak configuration
+ipcMain.handle('leak:update-config', async (event, key, value) => {
+  try {
+    const result = dbManager.updateLeakConfig(key, value);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Update leak config error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get leak dashboard summary
+ipcMain.handle('leak:get-dashboard-summary', async (event) => {
+  try {
+    const summary = dbManager.getLeakDashboardSummary();
+    return { success: true, data: summary };
+  } catch (error) {
+    console.error('Get leak dashboard summary error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Record shift data
+ipcMain.handle('leak:record-shift', async (event, data) => {
+  try {
+    const result = dbManager.recordShiftData(data);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Record shift data error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get shift data
+ipcMain.handle('leak:get-shifts', async (event, filters = {}) => {
+  try {
+    const shifts = dbManager.getShiftData(filters);
+    return { success: true, data: shifts };
+  } catch (error) {
+    console.error('Get shift data error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Record POS audit event
+ipcMain.handle('leak:record-audit-event', async (event, data) => {
+  try {
+    const result = dbManager.recordPOSAuditEvent(data);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Record POS audit event error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get POS audit logs
+ipcMain.handle('leak:get-audit-logs', async (event, filters = {}) => {
+  try {
+    const logs = dbManager.getPOSAuditLogs(filters);
+    return { success: true, data: logs };
+  } catch (error) {
+    console.error('Get POS audit logs error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ==================== INVENTORY IPC HANDLERS ====================
+
+// Add new batch/lot
+ipcMain.handle('inventory:add-batch', (event, batchData) => {
+  try {
+    return inventoryService.addBatch(batchData);
+  } catch (error) {
+    console.error('Add batch error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get product batches
+ipcMain.handle('inventory:get-batches', (event, productId) => {
+  try {
+    return inventoryService.getProductBatches(productId);
+  } catch (error) {
+    console.error('Get batches error:', error);
+    return [];
+  }
+});
+
+// Add serial numbers
+ipcMain.handle('inventory:add-serial-numbers', (event, serialData) => {
+  try {
+    return inventoryService.addSerialNumbers(serialData);
+  } catch (error) {
+    console.error('Add serial numbers error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get product serial numbers
+ipcMain.handle('inventory:get-serial-numbers', (event, productId) => {
+  try {
+    return inventoryService.getProductSerialNumbers(productId);
+  } catch (error) {
+    console.error('Get serial numbers error:', error);
+    return [];
+  }
+});
+
+// Record stock movement
+ipcMain.handle('inventory:record-movement', (event, movementData) => {
+  try {
+    return inventoryService.recordMovement(movementData);
+  } catch (error) {
+    console.error('Record movement error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get inventory summary
+ipcMain.handle('inventory:get-summary', (event, filters) => {
+  try {
+    return inventoryService.getInventorySummary(filters);
+  } catch (error) {
+    console.error('Get inventory summary error:', error);
+    return null;
+  }
+});
+
+// Get movement history
+ipcMain.handle('inventory:get-movements', (event, filters) => {
+  try {
+    return inventoryService.getMovementHistory(filters);
+  } catch (error) {
+    console.error('Get movements error:', error);
+    return [];
+  }
+});
+
+// Get low stock products
+ipcMain.handle('inventory:get-low-stock', (event, threshold) => {
+  try {
+    return inventoryService.getLowStockProducts(threshold);
+  } catch (error) {
+    console.error('Get low stock error:', error);
+    return [];
+  }
+});
+
+// Get expiring batches
+ipcMain.handle('inventory:get-expiring', (event, daysAhead) => {
+  try {
+    return inventoryService.getExpiringBatches(daysAhead);
+  } catch (error) {
+    console.error('Get expiring batches error:', error);
+    return [];
+  }
+});
+
+// Get inventory valuation
+ipcMain.handle('inventory:get-valuation', (event, asOnDate) => {
+  try {
+    return inventoryService.getInventoryValuation(asOnDate);
+  } catch (error) {
+    console.error('Get valuation error:', error);
+    return null;
+  }
+});
+
+// Transfer stock
+ipcMain.handle('inventory:transfer-stock', (event, transferData) => {
+  try {
+    return inventoryService.transferStock(transferData);
+  } catch (error) {
+    console.error('Transfer stock error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Adjust inventory
+ipcMain.handle('inventory:adjust', (event, adjustmentData) => {
+  try {
+    return inventoryService.adjustInventory(adjustmentData);
+  } catch (error) {
+    console.error('Adjust inventory error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ==================== REPORT ENGINE IPC HANDLERS ====================
+
+// Generate Sales Report
+ipcMain.handle('report:generate-sales', async (event, params) => {
+  try {
+    return await reportEngine.generateSalesReport(params);
+  } catch (error) {
+    console.error('Sales report error:', error);
+    return null;
+  }
+});
+
+// Generate GST Report
+ipcMain.handle('report:generate-gst', async (event, month) => {
+  try {
+    return await reportEngine.generateGSTReport(month);
+  } catch (error) {
+    console.error('GST report error:', error);
+    return null;
+  }
+});
+
+// Generate Profit & Loss Report
+ipcMain.handle('report:generate-pnl', async (event, params) => {
+  try {
+    return await reportEngine.generateProfitLoss(params);
+  } catch (error) {
+    console.error('P&L report error:', error);
+    return null;
+  }
+});
+
+// Generate Balance Sheet
+ipcMain.handle('report:generate-balance-sheet', async (event, asOfDate) => {
+  try {
+    return await reportEngine.generateBalanceSheet(asOfDate);
+  } catch (error) {
+    console.error('Balance sheet error:', error);
+    return null;
+  }
+});
+
+// Generate Cash Flow Report
+ipcMain.handle('report:generate-cashflow', async (event, params) => {
+  try {
+    return await reportEngine.generateCashFlow(params);
+  } catch (error) {
+    console.error('Cash flow report error:', error);
+    return null;
+  }
+});
+
+// Generate Outstanding Aging Report
+ipcMain.handle('report:generate-outstanding', async (event) => {
+  try {
+    return await reportEngine.generateOutstandingAging();
+  } catch (error) {
+    console.error('Outstanding aging error:', error);
+    return null;
+  }
+});
+
+// Generate Expense Summary
+ipcMain.handle('report:generate-expense-summary', async (event, params) => {
+  try {
+    return await reportEngine.generateExpenseSummary(params);
+  } catch (error) {
+    console.error('Expense summary error:', error);
+    return null;
+  }
+});
+
+// Get Dashboard Summary
+ipcMain.handle('report:get-dashboard-summary', async (event) => {
+  try {
+    const now = new Date();
+    const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+    
+    const [salesReport, outstandingReport, expenseSummary] = await Promise.all([
+      reportEngine.generateSalesReport({ startDate: startOfMonth, endDate: endOfMonth }),
+      reportEngine.generateOutstandingAging(),
+      reportEngine.generateExpenseSummary({ startDate: startOfMonth, endDate: endOfMonth })
+    ]);
+    
+    return {
+      sales: salesReport?.summary || null,
+      outstanding: outstandingReport || null,
+      expenses: expenseSummary?.summary || null,
+      generatedAt: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('Dashboard summary error:', error);
+    return null;
+  }
+});
+
+// ==================== BANKING IPC HANDLERS ====================
+
+// Add bank account
+ipcMain.handle('banking:add-account', (event, accountData) => {
+  try {
+    return bankingService.addBankAccount(accountData);
+  } catch (error) {
+    console.error('Add bank account error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get all bank accounts
+ipcMain.handle('banking:get-accounts', (event) => {
+  try {
+    return bankingService.getBankAccounts();
+  } catch (error) {
+    console.error('Get accounts error:', error);
+    return [];
+  }
+});
+
+// Get single bank account
+ipcMain.handle('banking:get-account', (event, accountId) => {
+  try {
+    return bankingService.getBankAccount(accountId);
+  } catch (error) {
+    console.error('Get account error:', error);
+    return null;
+  }
+});
+
+// Update bank account
+ipcMain.handle('banking:update-account', (event, accountId, updates) => {
+  try {
+    return bankingService.updateBankAccount(accountId, updates);
+  } catch (error) {
+    console.error('Update account error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Delete bank account
+ipcMain.handle('banking:delete-account', (event, accountId) => {
+  try {
+    return bankingService.deleteBankAccount(accountId);
+  } catch (error) {
+    console.error('Delete account error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Add bank transaction
+ipcMain.handle('banking:add-transaction', (event, transactionData) => {
+  try {
+    return bankingService.addBankTransaction(transactionData);
+  } catch (error) {
+    console.error('Add transaction error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get bank transactions
+ipcMain.handle('banking:get-transactions', (event, filters) => {
+  try {
+    return bankingService.getBankTransactions(filters);
+  } catch (error) {
+    console.error('Get transactions error:', error);
+    return [];
+  }
+});
+
+// Get unmatched transactions
+ipcMain.handle('banking:get-unmatched', (event, accountId) => {
+  try {
+    return bankingService.getUnmatchedTransactions(accountId);
+  } catch (error) {
+    console.error('Get unmatched error:', error);
+    return [];
+  }
+});
+
+// Auto reconcile
+ipcMain.handle('banking:auto-reconcile', (event, accountId) => {
+  try {
+    return bankingService.autoReconcile(accountId);
+  } catch (error) {
+    console.error('Auto reconcile error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Match transaction
+ipcMain.handle('banking:match-transaction', (event, transactionId, invoiceId, invoiceType) => {
+  try {
+    return bankingService.matchTransaction(transactionId, invoiceId, invoiceType);
+  } catch (error) {
+    console.error('Match transaction error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Unmatch transaction
+ipcMain.handle('banking:unmatch-transaction', (event, transactionId) => {
+  try {
+    return bankingService.unmatchTransaction(transactionId);
+  } catch (error) {
+    console.error('Unmatch transaction error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get reconciliation summary
+ipcMain.handle('banking:get-summary', (event, accountId) => {
+  try {
+    return bankingService.getReconciliationSummary(accountId);
+  } catch (error) {
+    console.error('Reconciliation summary error:', error);
+    return null;
+  }
+});
+
+// Add reconciliation rule
+ipcMain.handle('banking:add-rule', (event, ruleData) => {
+  try {
+    return bankingService.addReconciliationRule(ruleData);
+  } catch (error) {
+    console.error('Add rule error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get reconciliation rules
+ipcMain.handle('banking:get-rules', (event, accountId) => {
+  try {
+    return bankingService.getReconciliationRules(accountId);
+  } catch (error) {
+    console.error('Get rules error:', error);
+    return [];
+  }
+});
+
+// Delete reconciliation rule
+ipcMain.handle('banking:delete-rule', (event, ruleId) => {
+  try {
+    return bankingService.deleteReconciliationRule(ruleId);
+  } catch (error) {
+    console.error('Delete rule error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Import bank statement
+ipcMain.handle('banking:import-statement', (event, accountId, transactions) => {
+  try {
+    return bankingService.importBankStatement(accountId, transactions);
+  } catch (error) {
+    console.error('Import statement error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ==================== PAYMENT GATEWAY IPC HANDLERS ====================
+
+// Save gateway configuration
+ipcMain.handle('payment:save-config', (event, configData) => {
+  try {
+    return paymentGatewayService.saveGatewayConfig(configData);
+  } catch (error) {
+    console.error('Save payment config error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get gateway configuration
+ipcMain.handle('payment:get-config', (event, gatewayName) => {
+  try {
+    return paymentGatewayService.getGatewayConfig(gatewayName);
+  } catch (error) {
+    console.error('Get payment config error:', error);
+    return [];
+  }
+});
+
+// Get active gateway
+ipcMain.handle('payment:get-active-gateway', (event) => {
+  try {
+    return paymentGatewayService.getActiveGateway();
+  } catch (error) {
+    console.error('Get active gateway error:', error);
+    return null;
+  }
+});
+
+// Set gateway status
+ipcMain.handle('payment:set-status', (event, gatewayId, isActive) => {
+  try {
+    return paymentGatewayService.setGatewayStatus(gatewayId, isActive);
+  } catch (error) {
+    console.error('Set gateway status error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Create payment link
+ipcMain.handle('payment:create-link', (event, invoiceId) => {
+  try {
+    return paymentGatewayService.createPaymentLink(invoiceId);
+  } catch (error) {
+    console.error('Create payment link error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get payment link
+ipcMain.handle('payment:get-link', (event, token) => {
+  try {
+    return paymentGatewayService.getPaymentLink(token);
+  } catch (error) {
+    console.error('Get payment link error:', error);
+    return null;
+  }
+});
+
+// Initiate payment
+ipcMain.handle('payment:initiate', (event, paymentData) => {
+  try {
+    return paymentGatewayService.initiatePayment(paymentData);
+  } catch (error) {
+    console.error('Initiate payment error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Update payment status
+ipcMain.handle('payment:update-status', (event, paymentId, status, gatewayResponse) => {
+  try {
+    return paymentGatewayService.updatePaymentStatus(paymentId, status, gatewayResponse);
+  } catch (error) {
+    console.error('Update payment status error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get payment transaction
+ipcMain.handle('payment:get-transaction', (event, paymentId) => {
+  try {
+    return paymentGatewayService.getPaymentTransaction(paymentId);
+  } catch (error) {
+    console.error('Get payment transaction error:', error);
+    return null;
+  }
+});
+
+// Get invoice payments
+ipcMain.handle('payment:get-invoice-payments', (event, invoiceId) => {
+  try {
+    return paymentGatewayService.getInvoicePayments(invoiceId);
+  } catch (error) {
+    console.error('Get invoice payments error:', error);
+    return [];
+  }
+});
+
+// Get payment transactions
+ipcMain.handle('payment:get-transactions', (event, filters) => {
+  try {
+    return paymentGatewayService.getPaymentTransactions(filters);
+  } catch (error) {
+    console.error('Get payment transactions error:', error);
+    return [];
+  }
+});
+
+// Get payment summary
+ipcMain.handle('payment:get-summary', (event, filters) => {
+  try {
+    return paymentGatewayService.getPaymentSummary(filters);
+  } catch (error) {
+    console.error('Get payment summary error:', error);
+    return null;
+  }
+});
+
+// Process refund
+ipcMain.handle('payment:process-refund', (event, paymentId, amount, reason) => {
+  try {
+    return paymentGatewayService.processRefund(paymentId, amount, reason);
+  } catch (error) {
+    console.error('Process refund error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get refunds
+ipcMain.handle('payment:get-refunds', (event, paymentId) => {
+  try {
+    return paymentGatewayService.getRefunds(paymentId);
+  } catch (error) {
+    console.error('Get refunds error:', error);
+    return [];
+  }
+});
+
+// Get webhook logs
+ipcMain.handle('payment:get-webhook-logs', (event, limit) => {
+  try {
+    return paymentGatewayService.getWebhookLogs(limit);
+  } catch (error) {
+    console.error('Get webhook logs error:', error);
+    return [];
+  }
+});
+
+// Test gateway connection
+ipcMain.handle('payment:test-connection', (event, gatewayId) => {
+  try {
+    return paymentGatewayService.testGatewayConnection(gatewayId);
+  } catch (error) {
+    console.error('Test connection error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Helper functions
+function getDefaultStartDate() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
+function getDefaultEndDate() {
+  const now = new Date();
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return lastDay.toISOString().split('T')[0];
+}
+
+// Integration initialization handler
+ipcMain.handle('integration:initialize', async () => {
+  return initializeIntegrationService();
+});
+
+// Get all integration connections status
+ipcMain.handle('integration:get-connections', async (event, userId = 1) => {
+  try {
+    await initializeIntegrationService();
+    const integrationService = require(path.join(__dirname, '../src/services/integrationService'));
+    
+    // Get tokens for each provider to determine connection status
+    const providers = ['tally', 'busy', 'quickbooks', 'xero', 'zoho'];
+    const connections = [];
+    
+    for (const provider of providers) {
+      try {
+        const tokens = await integrationService.AuthService.getTokens(userId, provider);
+        connections.push({
+          provider,
+          connected: !!tokens,
+          hasRefreshToken: !!tokens?.refreshToken
+        });
+      } catch (err) {
+        connections.push({
+          provider,
+          connected: false,
+          error: err.message
+        });
+      }
+    }
+    
+    return { success: true, connections };
+  } catch (error) {
+    console.error('Get connections error:', error);
+    return { success: false, error: error.message, connections: [] };
+  }
+});
+
+// Check specific provider connection status
+ipcMain.handle('integration:check-connection', async (event, provider, userId = 1) => {
+  try {
+    await initializeIntegrationService();
+    const integrationService = require(path.join(__dirname, '../src/services/integrationService'));
+    
+    const tokens = await integrationService.AuthService.getTokens(userId, provider);
+    
+    return {
+      success: true,
+      isConnected: !!tokens,
+      hasRefreshToken: !!tokens?.refreshToken,
+      expiresAt: tokens?.expiresAt
+    };
+  } catch (error) {
+    console.error('Check connection error:', error);
+    return { success: false, error: error.message, isConnected: false };
+  }
+});
+
+// Save OAuth tokens after OAuth callback
+ipcMain.handle('integration:save-tokens', async (event, userId, provider, tokens) => {
+  try {
+    await initializeIntegrationService();
+    const integrationService = require(path.join(__dirname, '../src/services/integrationService'));
+    
+    await integrationService.AuthService.saveTokens(userId, provider, tokens);
+    
+    // Log audit event
+    const dbService = integrationService.getDb();
+    await dbService.logAuditEvent({
+      userId,
+      action: 'OAUTH_CONNECTED',
+      resourceType: 'integration',
+      resourceId: provider,
+      details: { provider, hasRefreshToken: !!tokens.refreshToken }
+    });
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Save tokens error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Delete tokens (disconnect)
+ipcMain.handle('integration:disconnect', async (event, userId, provider) => {
+  try {
+    await initializeIntegrationService();
+    const integrationService = require(path.join(__dirname, '../src/services/integrationService'));
+    
+    await integrationService.AuthService.deleteTokens(userId, provider);
+    
+    // Log audit event
+    const dbService = integrationService.getDb();
+    await dbService.logAuditEvent({
+      userId,
+      action: 'OAUTH_DISCONNECTED',
+      resourceType: 'integration',
+      resourceId: provider
+    });
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Disconnect error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get OAuth authorization URL for cloud providers
+ipcMain.handle('integration:get-auth-url', async (event, provider) => {
+  try {
+    await initializeIntegrationService();
+    const integrationService = require(path.join(__dirname, '../src/services/integrationService'));
+    
+    let authUrl;
+    
+    switch (provider) {
+      case 'quickbooks': {
+        const QuickBooksModule = require(path.join(__dirname, '../enterprise-integrations/src/modules/quickbooks'));
+        authUrl = QuickBooksModule.getAuthUrl();
+        break;
+      }
+      case 'xero': {
+        const XeroModule = require(path.join(__dirname, '../enterprise-integrations/src/modules/xero'));
+        authUrl = XeroModule.getAuthUrl();
+        break;
+      }
+      case 'zoho': {
+        const ZohoModule = require(path.join(__dirname, '../enterprise-integrations/src/modules/zoho'));
+        authUrl = ZohoModule.getAuthUrl();
+        break;
+      }
+      default:
+        throw new Error(`Provider ${provider} does not require OAuth`);
+    }
+    
+    return { success: true, url: authUrl };
+  } catch (error) {
+    console.error('Get auth URL error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Start sync operation
+ipcMain.handle('integration:start-sync', async (event, userId, provider, syncType = 'full') => {
+  try {
+    await initializeIntegrationService();
+    const integrationService = require(path.join(__dirname, '../src/services/integrationService'));
+    
+    // Create sync session
+    const session = await integrationService.SyncService.startSync(userId, provider, syncType);
+    
+    return {
+      success: true,
+      syncId: session.syncId,
+      status: session.status
+    };
+  } catch (error) {
+    console.error('Start sync error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Complete sync operation
+ipcMain.handle('integration:complete-sync', async (event, syncId, result) => {
+  try {
+    const integrationService = require(path.join(__dirname, '../src/services/integrationService'));
+    
+    await integrationService.SyncService.completeSync(syncId, result);
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Complete sync error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get sync history
+ipcMain.handle('integration:get-sync-history', async (event, userId, provider = null, limit = 20) => {
+  try {
+    const integrationService = require(path.join(__dirname, '../src/services/integrationService'));
+    const db = integrationService.getDb();
+    
+    return new Promise((resolve, reject) => {
+      let sql = 'SELECT * FROM sync_history WHERE user_id = ?';
+      const params = [userId];
+      
+      if (provider) {
+        sql += ' AND provider = ?';
+        params.push(provider);
+      }
+      
+      sql += ' ORDER BY started_at DESC LIMIT ?';
+      params.push(limit);
+      
+      db.all(sql, params, (err, rows) => {
+        if (err) reject(err);
+        else resolve({ success: true, history: rows || [] });
+      });
+    });
+  } catch (error) {
+    console.error('Get sync history error:', error);
+    return { success: false, error: error.message, history: [] };
+  }
+});
+
+// Get audit logs for integrations
+ipcMain.handle('integration:get-audit-logs', async (event, userId, options = {}) => {
+  try {
+    await initializeIntegrationService();
+    const integrationService = require(path.join(__dirname, '../src/services/integrationService'));
+    
+    const logs = await integrationService.AuditService.getLogs(userId, options);
+    
+    return { success: true, logs };
+  } catch (error) {
+    console.error('Get audit logs error:', error);
+    return { success: false, error: error.message, logs: [] };
+  }
+});
+
+// Configure local integration (Tally, Busy)
+ipcMain.handle('integration:configure-local', async (event, userId, provider, config) => {
+  try {
+    await initializeIntegrationService();
+    const integrationService = require(path.join(__dirname, '../src/services/integrationService'));
+    const db = integrationService.getDb();
+    
+    // Save configuration (encrypted)
+    const crypto = integrationService.getCrypto();
+    const configEncrypted = crypto.encrypt(JSON.stringify(config));
+    
+    return new Promise((resolve, reject) => {
+      db.run(
+        `INSERT OR REPLACE INTO integration_configs 
+         (user_id, provider, config_encrypted, config_iv, updated_at)
+         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [userId, provider, configEncrypted.content, configEncrypted.iv],
+        (err) => {
+          if (err) reject(err);
+          else resolve({ success: true });
+        }
+      );
+    });
+  } catch (error) {
+    console.error('Configure local error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Test local integration connection
+ipcMain.handle('integration:test-local-connection', async (event, userId, provider, config) => {
+  try {
+    await initializeIntegrationService();
+    
+    let testResult;
+    
+    switch (provider) {
+      case 'tally': {
+        const TallyModule = require(path.join(__dirname, '../enterprise-integrations/src/modules/tally'));
+        testResult = await TallyModule.testConnection(config);
+        break;
+      }
+      case 'busy': {
+        const BusyModule = require(path.join(__dirname, '../enterprise-integrations/src/modules/busy'));
+        testResult = await BusyModule.testConnection(config);
+        break;
+      }
+      default:
+        throw new Error(`Unknown local provider: ${provider}`);
+    }
+    
+    return testResult;
+  } catch (error) {
+    console.error('Test local connection error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ==================== ERROR RECOVERY & IDEMPOTENCY IPC HANDLERS ====================
+
+// Get dead letter queue
+ipcMain.handle('integration:get-dead-letter-queue', async (event, options = {}) => {
+  try {
+    await initializeIntegrationService();
+    const integrationService = require(path.join(__dirname, '../src/services/integrationService'));
+    
+    const result = await integrationService.ErrorRecoveryService.getDeadLetterQueue(options);
+    return result;
+  } catch (error) {
+    console.error('Get DLQ error:', error);
+    return { success: false, error: error.message, items: [] };
+  }
+});
+
+// Retry dead letter queue item
+ipcMain.handle('integration:retry-dlq-item', async (event, dlqId) => {
+  try {
+    await initializeIntegrationService();
+    const integrationService = require(path.join(__dirname, '../src/services/integrationService'));
+    
+    const result = await integrationService.ErrorRecoveryService.retryDeadLetterItem(dlqId);
+    return result;
+  } catch (error) {
+    console.error('Retry DLQ item error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Resolve dead letter queue item
+ipcMain.handle('integration:resolve-dlq-item', async (event, dlqId, resolution) => {
+  try {
+    await initializeIntegrationService();
+    const integrationService = require(path.join(__dirname, '../src/services/integrationService'));
+    
+    const result = await integrationService.ErrorRecoveryService.resolveDeadLetterItem(dlqId, resolution);
+    return result;
+  } catch (error) {
+    console.error('Resolve DLQ item error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Clear dead letter queue
+ipcMain.handle('integration:clear-dead-letter-queue', async (event, userId, provider) => {
+  try {
+    await initializeIntegrationService();
+    const integrationService = require(path.join(__dirname, '../src/services/integrationService'));
+    
+    const result = await integrationService.ErrorRecoveryService.clearDeadLetterQueue(userId, provider);
+    return result;
+  } catch (error) {
+    console.error('Clear DLQ error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Check reconciliation
+ipcMain.handle('integration:check-reconciliation', async (event, userId, provider, entityType) => {
+  try {
+    await initializeIntegrationService();
+    const integrationService = require(path.join(__dirname, '../src/services/integrationService'));
+    
+    const result = await integrationService.ErrorRecoveryService.checkReconciliation(userId, provider, entityType);
+    return result;
+  } catch (error) {
+    console.error('Check reconciliation error:', error);
+    return { success: false, error: error.message, issues: [] };
+  }
+});
+
+// Get operation statistics
+ipcMain.handle('integration:get-operation-stats', async (event, userId, provider = null) => {
+  try {
+    await initializeIntegrationService();
+    const integrationService = require(path.join(__dirname, '../src/services/integrationService'));
+    
+    const result = await integrationService.ErrorRecoveryService.getOperationStats(userId, provider);
+    return result;
+  } catch (error) {
+    console.error('Get operation stats error:', error);
+    return { success: false, error: error.message, stats: null };
+  }
+});
+
+// Get enhanced sync history (with formatted errors)
+ipcMain.handle('integration:get-sync-history-enhanced', async (event, userId, provider = null, limit = 50) => {
+  try {
+    await initializeIntegrationService();
+    const integrationService = require(path.join(__dirname, '../src/services/integrationService'));
+    
+    const history = await integrationService.SyncService.getSyncHistory(userId, provider, limit);
+    return { success: true, history };
+  } catch (error) {
+    console.error('Get enhanced sync history error:', error);
+    return { success: false, error: error.message, history: [] };
+  }
+});

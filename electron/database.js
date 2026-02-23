@@ -2090,6 +2090,546 @@ class DatabaseManager {
 
     return matches;
   }
+
+  // ==================== CASH LEAK DETECTION TABLES ====================
+  
+  // Create leak detection tables
+  createLeakDetectionTables() {
+    const leakStatements = [
+      // Table: To track specific detected anomalies
+      `CREATE TABLE IF NOT EXISTS leak_anomalies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        detected_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        leak_type TEXT NOT NULL,
+        severity_level TEXT DEFAULT 'MEDIUM',
+        estimated_loss_amount REAL DEFAULT 0,
+        currency TEXT DEFAULT 'INR',
+        associated_staff_id INTEGER,
+        associated_staff_name TEXT,
+        associated_shift TEXT,
+        location TEXT,
+        description TEXT,
+        evidence_data TEXT,
+        status TEXT DEFAULT 'OPEN',
+        ai_confidence_score REAL DEFAULT 0,
+        resolved_at TEXT,
+        resolution_notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // Table: To store shift data for analysis
+      `CREATE TABLE IF NOT EXISTS shift_data (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        shift_date TEXT NOT NULL,
+        shift_type TEXT NOT NULL,
+        staff_id INTEGER,
+        staff_name TEXT,
+        opening_cash REAL DEFAULT 0,
+        expected_cash REAL DEFAULT 0,
+        actual_cash REAL DEFAULT 0,
+        cash_difference REAL DEFAULT 0,
+        total_sales REAL DEFAULT 0,
+        transaction_count INTEGER DEFAULT 0,
+        void_count INTEGER DEFAULT 0,
+        void_amount REAL DEFAULT 0,
+        discount_count INTEGER DEFAULT 0,
+        discount_amount REAL DEFAULT 0,
+        return_count INTEGER DEFAULT 0,
+        return_amount REAL DEFAULT 0,
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // Table: To configure thresholds for different business types
+      `CREATE TABLE IF NOT EXISTS leak_config (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        setting_key TEXT UNIQUE NOT NULL,
+        setting_value TEXT,
+        setting_type TEXT DEFAULT 'NUMBER',
+        category TEXT DEFAULT 'GENERAL',
+        description TEXT,
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // Table: To store inventory reconciliation data
+      `CREATE TABLE IF NOT EXISTS inventory_reconciliation (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        reconciliation_date TEXT NOT NULL,
+        product_id INTEGER,
+        product_name TEXT,
+        expected_stock INTEGER DEFAULT 0,
+        actual_stock INTEGER DEFAULT 0,
+        variance INTEGER DEFAULT 0,
+        variance_value REAL DEFAULT 0,
+        reason TEXT,
+        status TEXT DEFAULT 'PENDING',
+        verified_by INTEGER,
+        verified_at TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // Table: To store POS audit logs
+      `CREATE TABLE IF NOT EXISTS pos_audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+        transaction_id INTEGER,
+        staff_id INTEGER,
+        staff_name TEXT,
+        action_type TEXT NOT NULL,
+        action_detail TEXT,
+        amount REAL,
+        previous_value TEXT,
+        new_value TEXT,
+        terminal_id TEXT,
+        ip_address TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // Table: To store cash drawer events
+      `CREATE TABLE IF NOT EXISTS cash_drawer_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+        staff_id INTEGER,
+        staff_name TEXT,
+        event_type TEXT NOT NULL,
+        amount REAL,
+        transaction_id INTEGER,
+        expected_balance REAL,
+        actual_balance REAL,
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // Insert default configurations
+      `INSERT OR IGNORE INTO leak_config (setting_key, setting_value, setting_type, category, description) VALUES
+        ('cash_mismatch_threshold_percent', '1', 'NUMBER', 'CASH', 'Maximum allowed cash variance percentage'),
+        ('inventory_mismatch_threshold_percent', '2', 'NUMBER', 'INVENTORY', 'Maximum allowed inventory variance percentage'),
+        ('void_transaction_threshold', '5', 'NUMBER', 'BILLING', 'Maximum void transactions per day before alert'),
+        ('under_ringing_threshold_percent', '20', 'NUMBER', 'BILLING', 'Minimum basket value deviation to flag'),
+        ('consecutive_shortage_threshold', '3', 'NUMBER', 'STAFF', 'Consecutive days of shortage before alert'),
+        ('ai_confidence_threshold', '0.7', 'NUMBER', 'AI', 'Minimum AI confidence to auto-flag'),
+        ('analysis_time_range_days', '30', 'NUMBER', 'ANALYSIS', 'Default time range for analysis'),
+        ('business_type', 'RETAIL', 'TEXT', 'GENERAL', 'Type of business for customized thresholds')`
+    ];
+
+    for (const statement of leakStatements) {
+      try {
+        this.db.exec(statement);
+      } catch (error) {
+        console.error('Error creating leak detection table:', error);
+      }
+    }
+  }
+
+  // ==================== CASH LEAK DETECTION METHODS ====================
+
+  // Get all leak anomalies
+  getLeakAnomalies(filters = {}) {
+    let query = 'SELECT * FROM leak_anomalies WHERE 1=1';
+    const params = [];
+
+    if (filters.status) {
+      query += ' AND status = ?';
+      params.push(filters.status);
+    }
+    if (filters.leak_type) {
+      query += ' AND leak_type = ?';
+      params.push(filters.leak_type);
+    }
+    if (filters.severity_level) {
+      query += ' AND severity_level = ?';
+      params.push(filters.severity_level);
+    }
+    if (filters.startDate) {
+      query += ' AND detected_at >= ?';
+      params.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      query += ' AND detected_at <= ?';
+      params.push(filters.endDate);
+    }
+
+    query += ' ORDER BY detected_at DESC';
+
+    if (filters.limit) {
+      query += ' LIMIT ?';
+      params.push(filters.limit);
+    }
+
+    return this.db.prepare(query).all(...params);
+  }
+
+  // Create a new leak anomaly
+  createLeakAnomaly(data) {
+    const stmt = this.db.prepare(`
+      INSERT INTO leak_anomalies 
+      (leak_type, severity_level, estimated_loss_amount, currency, associated_staff_id, 
+       associated_staff_name, associated_shift, location, description, evidence_data, 
+       ai_confidence_score, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    return stmt.run(
+      data.leak_type,
+      data.severity_level || 'MEDIUM',
+      data.estimated_loss_amount || 0,
+      data.currency || 'INR',
+      data.associated_staff_id,
+      data.associated_staff_name,
+      data.associated_shift,
+      data.location,
+      data.description,
+      JSON.stringify(data.evidence_data || {}),
+      data.ai_confidence_score || 0,
+      data.status || 'OPEN'
+    );
+  }
+
+  // Resolve a leak anomaly
+  resolveLeakAnomaly(id, resolutionNotes) {
+    const stmt = this.db.prepare(`
+      UPDATE leak_anomalies 
+      SET status = 'RESOLVED', resolved_at = CURRENT_TIMESTAMP, resolution_notes = ?
+      WHERE id = ?
+    `);
+    return stmt.run(resolutionNotes, id);
+  }
+
+  // Get leak configuration
+  getLeakConfig(key = null) {
+    if (key) {
+      const stmt = this.db.prepare('SELECT * FROM leak_config WHERE setting_key = ? AND is_active = 1');
+      return stmt.get(key);
+    }
+    const stmt = this.db.prepare('SELECT * FROM leak_config WHERE is_active = 1');
+    return stmt.all();
+  }
+
+  // Update leak configuration
+  updateLeakConfig(key, value) {
+    const stmt = this.db.prepare(`
+      UPDATE leak_config SET setting_value = ?, updated_at = CURRENT_TIMESTAMP WHERE setting_key = ?
+    `);
+    return stmt.run(value, key);
+  }
+
+  // Get shift data for analysis
+  getShiftData(filters = {}) {
+    let query = 'SELECT * FROM shift_data WHERE 1=1';
+    const params = [];
+
+    if (filters.staff_id) {
+      query += ' AND staff_id = ?';
+      params.push(filters.staff_id);
+    }
+    if (filters.startDate) {
+      query += ' AND shift_date >= ?';
+      params.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      query += ' AND shift_date <= ?';
+      params.push(filters.endDate);
+    }
+
+    query += ' ORDER BY shift_date DESC';
+
+    return this.db.prepare(query).all(...params);
+  }
+
+  // Record shift data
+  recordShiftData(data) {
+    const stmt = this.db.prepare(`
+      INSERT INTO shift_data 
+      (shift_date, shift_type, staff_id, staff_name, opening_cash, expected_cash, actual_cash,
+       cash_difference, total_sales, transaction_count, void_count, void_amount, 
+       discount_count, discount_amount, return_count, return_amount, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    return stmt.run(
+      data.shift_date, data.shift_type, data.staff_id, data.staff_name,
+      data.opening_cash, data.expected_cash, data.actual_cash, data.cash_difference,
+      data.total_sales, data.transaction_count, data.void_count, data.void_amount,
+      data.discount_count, data.discount_amount, data.return_count, data.return_amount,
+      data.notes
+    );
+  }
+
+  // Get POS audit logs
+  getPOSAuditLogs(filters = {}) {
+    let query = 'SELECT * FROM pos_audit_log WHERE 1=1';
+    const params = [];
+
+    if (filters.staff_id) {
+      query += ' AND staff_id = ?';
+      params.push(filters.staff_id);
+    }
+    if (filters.action_type) {
+      query += ' AND action_type = ?';
+      params.push(filters.action_type);
+    }
+    if (filters.startDate) {
+      query += ' AND timestamp >= ?';
+      params.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      query += ' AND timestamp <= ?';
+      params.push(filters.endDate);
+    }
+
+    query += ' ORDER BY timestamp DESC LIMIT ?';
+    params.push(filters.limit || 100);
+
+    return this.db.prepare(query).all(...params);
+  }
+
+  // Record POS audit event
+  recordPOSAuditEvent(data) {
+    const stmt = this.db.prepare(`
+      INSERT INTO pos_audit_log 
+      (transaction_id, staff_id, staff_name, action_type, action_detail, amount, 
+       previous_value, new_value, terminal_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    return stmt.run(
+      data.transaction_id, data.staff_id, data.staff_name, data.action_type,
+      data.action_detail, data.amount, data.previous_value, data.new_value, data.terminal_id
+    );
+  }
+
+  // Run cash leak analysis
+  runCashLeakAnalysis() {
+    const results = {
+      inventoryLeaks: [],
+      cashMismatches: [],
+      billingManipulations: [],
+      staffAnomalies: [],
+      summary: {
+        totalAnomalies: 0,
+        totalEstimatedLoss: 0,
+        highSeverity: 0,
+        mediumSeverity: 0,
+        lowSeverity: 0
+      }
+    };
+
+    try {
+      // 1. Inventory Leak Analysis
+      // Compare products with opening stock + purchases - sales vs current stock
+      const products = this.db.prepare(`
+        SELECT p.id, p.name, p.opening_stock, p.current_stock,
+          COALESCE(SUM(ti.quantity), 0) as total_sold
+        FROM products p
+        LEFT JOIN transactions t ON t.is_active = 1
+        LEFT JOIN transaction_items ti ON ti.transaction_id = t.id AND ti.product_id = p.id
+        WHERE p.is_active = 1
+        GROUP BY p.id
+      `).all();
+
+      for (const product of products) {
+        const expectedStock = product.opening_stock - product.total_sold;
+        const variance = product.current_stock - expectedStock;
+        
+        // If variance is significant (more than 2%)
+        if (Math.abs(variance) > 0 && Math.abs(variance / expectedStock) > 0.02) {
+          const lossAmount = Math.abs(variance * (product.cost_price || 0));
+          
+          if (lossAmount > 100) { // Only flag if loss is significant
+            results.inventoryLeaks.push({
+              product_id: product.id,
+              product_name: product.name,
+              expected_stock: expectedStock,
+              actual_stock: product.current_stock,
+              variance: variance,
+              estimated_loss: lossAmount
+            });
+            
+            // Create anomaly record
+            this.createLeakAnomaly({
+              leak_type: 'INVENTORY',
+              severity_level: lossAmount > 5000 ? 'HIGH' : 'MEDIUM',
+              estimated_loss_amount: lossAmount,
+              description: `Inventory variance detected for ${product.name}: ${variance} units missing`,
+              evidence_data: { product, expected: expectedStock, actual: product.current_stock },
+              ai_confidence_score: 0.85
+            });
+          }
+        }
+      }
+
+      // 2. Cash Mismatch Analysis from shift data
+      const shifts = this.db.prepare(`
+        SELECT * FROM shift_data 
+        WHERE cash_difference != 0
+        ORDER BY shift_date DESC
+        LIMIT 100
+      `).all();
+
+      const config = this.getLeakConfig();
+      const cashThreshold = parseFloat(config.find(c => c.setting_key === 'cash_mismatch_threshold_percent')?.setting_value || 1) / 100;
+
+      for (const shift of shifts) {
+        const variancePercent = Math.abs(shift.cash_difference / shift.expected_cash);
+        
+        if (variancePercent > cashThreshold) {
+          results.cashMismatches.push({
+            shift_id: shift.id,
+            shift_date: shift.shift_date,
+            staff_name: shift.staff_name,
+            expected: shift.expected_cash,
+            actual: shift.actual_cash,
+            difference: shift.cash_difference,
+            variance_percent: (variancePercent * 100).toFixed(2)
+          });
+
+          // Create anomaly record
+          this.createLeakAnomaly({
+            leak_type: 'CASH',
+            severity_level: variancePercent > 0.05 ? 'HIGH' : 'MEDIUM',
+            estimated_loss_amount: Math.abs(shift.cash_difference),
+            associated_staff_id: shift.staff_id,
+            associated_staff_name: shift.staff_name,
+            associated_shift: shift.shift_type,
+            description: `Cash variance of ₹${Math.abs(shift.cash_difference).toFixed(2)} detected for ${shift.staff_name} on ${shift.shift_date}`,
+            evidence_data: shift,
+            ai_confidence_score: 0.9
+          });
+        }
+      }
+
+      // 3. Billing Manipulation Analysis (void transactions)
+      const voidAnalysis = this.db.prepare(`
+        SELECT staff_id, staff_name, 
+          COUNT(*) as void_count, 
+          SUM(void_amount) as total_void_amount,
+          COUNT(*) * 1.0 / NULLIF((SELECT COUNT(*) FROM transactions t2 WHERE t2.staff_id = staff_id), 0) as void_rate
+        FROM shift_data
+        WHERE void_count > 0
+        GROUP BY staff_id
+        HAVING void_count > 5
+      `).all();
+
+      for (const voidData of voidAnalysis) {
+        if (voidData.void_rate > 0.1) { // More than 10% void rate
+          results.billingManipulations.push(voidData);
+          
+          this.createLeakAnomaly({
+            leak_type: 'BILLING',
+            severity_level: 'HIGH',
+            associated_staff_id: voidData.staff_id,
+            associated_staff_name: voidData.staff_name,
+            description: `High void transaction rate detected for ${voidData.staff_name}: ${voidData.void_count} voids totaling ₹${voidData.total_void_amount}`,
+            evidence_data: voidData,
+            ai_confidence_score: 0.8
+          });
+        }
+      }
+
+      // 4. Staff Performance Anomalies
+      const staffAnalysis = this.db.prepare(`
+        SELECT staff_id, staff_name,
+          AVG(total_sales / NULLIF(transaction_count, 0)) as avg_basket_value,
+          AVG(cash_difference / NULLIF(expected_cash, 0)) as avg_cash_variance
+        FROM shift_data
+        GROUP BY staff_id
+      `).all();
+
+      // Get overall average for comparison
+      const overallAvg = this.db.prepare(`
+        SELECT AVG(total_sales / NULLIF(transaction_count, 0)) as overall_avg
+        FROM shift_data WHERE transaction_count > 0
+      `).get();
+
+      for (const staff of staffAnalysis) {
+        if (staff.avg_basket_value < overallAvg.overall_avg * 0.8) {
+          results.staffAnomalies.push({
+            staff_id: staff.staff_id,
+            staff_name: staff.staff_name,
+            avg_basket: staff.avg_basket_value,
+            store_avg: overallAvg.overall_avg,
+            deviation: ((staff.avg_basket_value / overallAvg.overall_avg - 1) * 100).toFixed(2)
+          });
+
+          this.createLeakAnomaly({
+            leak_type: 'THEFT_SUSPICION',
+            severity_level: 'MEDIUM',
+            associated_staff_id: staff.staff_id,
+            associated_staff_name: staff.staff_name,
+            description: `Below-average basket value detected for ${staff.staff_name}. May indicate under-ringing.`,
+            evidence_data: staff,
+            ai_confidence_score: 0.75
+          });
+        }
+      }
+
+      // Calculate summary
+      const anomalies = this.db.prepare(`
+        SELECT severity_level, SUM(estimated_loss_amount) as total
+        FROM leak_anomalies WHERE status = 'OPEN'
+        GROUP BY severity_level
+      `).all();
+
+      for (const item of anomalies) {
+        results.summary.totalEstimatedLoss += item.total;
+        if (item.severity_level === 'HIGH') results.summary.highSeverity++;
+        else if (item.severity_level === 'MEDIUM') results.summary.mediumSeverity++;
+        else results.summary.lowSeverity++;
+      }
+
+      results.summary.totalAnomalies = results.summary.highSeverity + results.summary.mediumSeverity + results.summary.lowSeverity;
+
+    } catch (error) {
+      console.error('Error running cash leak analysis:', error);
+    }
+
+    return results;
+  }
+
+  // Get leak dashboard summary
+  getLeakDashboardSummary() {
+    const totalOpen = this.db.prepare(`
+      SELECT COUNT(*) as count, COALESCE(SUM(estimated_loss_amount), 0) as total_loss
+      FROM leak_anomalies WHERE status = 'OPEN'
+    `).get();
+
+    const byType = this.db.prepare(`
+      SELECT leak_type, COUNT(*) as count, SUM(estimated_loss_amount) as total
+      FROM leak_anomalies WHERE status = 'OPEN'
+      GROUP BY leak_type
+    `).all();
+
+    const bySeverity = this.db.prepare(`
+      SELECT severity_level, COUNT(*) as count
+      FROM leak_anomalies WHERE status = 'OPEN'
+      GROUP BY severity_level
+    `).all();
+
+    const recent = this.db.prepare(`
+      SELECT * FROM leak_anomalies WHERE status = 'OPEN'
+      ORDER BY detected_at DESC LIMIT 10
+    `).all();
+
+    // Get top staff with issues
+    const topStaff = this.db.prepare(`
+      SELECT associated_staff_name, COUNT(*) as issue_count, SUM(estimated_loss_amount) as total_loss
+      FROM leak_anomalies WHERE status = 'OPEN' AND associated_staff_name IS NOT NULL
+      GROUP BY associated_staff_name
+      ORDER BY total_loss DESC LIMIT 5
+    `).all();
+
+    return {
+      totalOpen: totalOpen.count,
+      totalLoss: totalOpen.total_loss,
+      byType,
+      bySeverity,
+      recent,
+      topStaff
+    };
+  }
 }
 
 // Export singleton instance

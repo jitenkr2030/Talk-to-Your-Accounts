@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import useIntegration from '../../integrations/hooks/useIntegration';
 import { INTEGRATION_STATUS, INTEGRATION_PLATFORMS } from '../../integrations/utils/constants';
+import ErrorRecoveryPanel from '../features/ErrorRecoveryPanel';
 
 /**
  * IntegrationManager Component
@@ -24,12 +25,19 @@ const IntegrationManager = () => {
     disconnectPlatform,
     syncPlatform,
     refreshToken,
-    getIntegrationStats
+    getIntegrationStats,
+    deadLetterQueue,
+    isLoadingDeadLetterQueue,
+    getDeadLetterQueue,
+    retryFailedItem,
+    discardFailedItem,
+    clearErrorRecoveryCache
   } = useIntegration();
 
   const [selectedPlatform, setSelectedPlatform] = useState(null);
   const [syncLogs, setSyncLogs] = useState([]);
   const [showDetails, setShowDetails] = useState(false);
+  const [showErrorRecovery, setShowErrorRecovery] = useState(false);
 
   // Handle platform connection
   const handleConnect = async (platform) => {
@@ -83,6 +91,36 @@ const IntegrationManager = () => {
   const clearLogs = () => {
     setSyncLogs([]);
   };
+
+  // Toggle error recovery panel
+  const toggleErrorRecovery = useCallback(async () => {
+    if (!showErrorRecovery && deadLetterQueue.length === 0) {
+      await getDeadLetterQueue();
+    }
+    setShowErrorRecovery(prev => !prev);
+  }, [showErrorRecovery, deadLetterQueue.length, getDeadLetterQueue]);
+
+  // Handle retry of failed item
+  const handleRetryFailedItem = useCallback(async (itemId) => {
+    const success = await retryFailedItem(itemId);
+    if (success) {
+      addSyncLog('success', `Successfully retried failed item #${itemId}`);
+    } else {
+      addSyncLog('error', `Failed to retry item #${itemId}`);
+    }
+    return success;
+  }, [retryFailedItem]);
+
+  // Handle discard of failed item
+  const handleDiscardFailedItem = useCallback(async (itemId) => {
+    const success = await discardFailedItem(itemId);
+    if (success) {
+      addSyncLog('info', `Discarded failed item #${itemId}`);
+    } else {
+      addSyncLog('error', `Failed to discard item #${itemId}`);
+    }
+    return success;
+  }, [discardFailedItem]);
 
   // Get status badge color
   const getStatusBadge = (status) => {
@@ -419,6 +457,20 @@ const IntegrationManager = () => {
         {Object.keys(INTEGRATION_PLATFORMS).map(platform => renderPlatformCard(platform))}
       </div>
 
+      {/* Error Recovery Panel */}
+      {showErrorRecovery && (
+        <div style={{ marginBottom: '32px' }}>
+          <ErrorRecoveryPanel
+            failedItems={deadLetterQueue}
+            isLoading={isLoadingDeadLetterQueue}
+            onRetry={handleRetryFailedItem}
+            onDiscard={handleDiscardFailedItem}
+            onRefresh={getDeadLetterQueue}
+            onClearCache={clearErrorRecoveryCache}
+          />
+        </div>
+      )}
+
       {/* Sync Logs */}
       <div style={{
         background: '#1e293b',
@@ -436,6 +488,70 @@ const IntegrationManager = () => {
         gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
         gap: '16px'
       }}>
+        <div style={{
+          background: '#1e293b',
+          borderRadius: '12px',
+          padding: '20px',
+          border: '1px solid #334155',
+          textAlign: 'center'
+        }}>
+          <div style={{ fontSize: '32px', marginBottom: '8px' }}>📊</div>
+          <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#f1f5f9' }}>
+            {Object.values(connections).filter(c => c.status === 'connected').length}
+          </div>
+          <div style={{ color: '#64748b', fontSize: '14px' }}>Connected Platforms</div>
+        </div>
+        <div style={{
+          background: '#1e293b',
+          borderRadius: '12px',
+          padding: '20px',
+          border: '1px solid #334155',
+          textAlign: 'center'
+        }}>
+          <div style={{ fontSize: '32px', marginBottom: '8px' }}>📋</div>
+          <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#f1f5f9' }}>
+            {Object.values(connections).reduce((sum, c) => sum + (c.syncedTransactions || 0), 0)}
+          </div>
+          <div style={{ color: '#64748b', fontSize: '14px' }}>Synced Transactions</div>
+        </div>
+        <div style={{
+          background: '#1e293b',
+          borderRadius: '12px',
+          padding: '20px',
+          border: '1px solid #334155',
+          textAlign: 'center'
+        }}>
+          <div style={{ fontSize: '32px', marginBottom: '8px' }}>🔄</div>
+          <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#f1f5f9' }}>
+            {syncLogs.filter(l => l.type === 'success').length}
+          </div>
+          <div style={{ color: '#64748b', fontSize: '14px' }}>Successful Syncs</div>
+        </div>
+        <button
+          onClick={toggleErrorRecovery}
+          style={{
+            background: deadLetterQueue.length > 0 ? '#f59e0b' : '#1e293b',
+            borderRadius: '12px',
+            padding: '20px',
+            border: deadLetterQueue.length > 0 ? '1px solid #f59e0b' : '1px solid #334155',
+            textAlign: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <div style={{ fontSize: '32px', marginBottom: '8px' }}>⚠️</div>
+          <div style={{ fontSize: '28px', fontWeight: 'bold', color: deadLetterQueue.length > 0 ? '#f59e0b' : '#f1f5f9' }}>
+            {deadLetterQueue.length}
+          </div>
+          <div style={{ color: '#64748b', fontSize: '14px' }}>
+            {showErrorRecovery ? 'Hide' : 'Show'} Error Recovery
+          </div>
+        </button>
+      </div>
         <div style={{
           background: '#1e293b',
           borderRadius: '12px',

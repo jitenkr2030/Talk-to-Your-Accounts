@@ -8,6 +8,29 @@ import LandingPage from './pages/LandingPage';
 import DataManagementPage from './pages/DataManagementPage';
 import InvoiceScanner from './pages/InvoiceScanner';
 import VoiceReconciliation from './components/Voice/VoiceReconciliation';
+import EInvoiceDashboard from './components/einvoice/EInvoiceViewer';
+import GSTRDashboard from './components/gst/GSTRDashboard';
+import InventoryDashboard from './components/inventory/InventoryDashboard';
+import TransactionDashboard from './components/transactions/TransactionDashboard';
+import PartyDashboard from './components/parties/PartyDashboard';
+import ReportsDashboard from './components/reports/ReportsDashboard';
+import BankingDashboard from './components/banking/BankingDashboard';
+import PaymentGatewayDashboard from './components/payment/PaymentGatewayDashboard';
+import ExpenseDashboard from './components/expense/ExpenseDashboard';
+import BudgetDashboard from './components/budget/BudgetDashboard';
+import VendorDashboard from './components/vendor/VendorDashboard';
+import ProjectDashboard from './components/project/ProjectDashboard';
+import UserManagement from './components/users/UserManagement';
+import EwaybillDashboard from './components/ewaybill/EwaybillDashboard';
+import ApiSettings from './components/settings/ApiSettings';
+import AnalyticsDashboard from './components/analytics/AnalyticsDashboard';
+import CurrencyDashboard from './components/currency/CurrencyDashboard';
+import VoiceSettingsDashboard from './components/voice/VoiceSettingsDashboard';
+import SecuritySettingsDashboard from './components/security/SecuritySettingsDashboard';
+import NotificationDashboard from './components/notifications/NotificationDashboard';
+import AIDashboard from './components/ai/AIDashboard';
+import NetworkStatus from './components/NetworkStatus';
+import CashLeakFinder from './components/leakdetection/CashLeakFinder';
 
 const AppContent = () => {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -488,12 +511,30 @@ const DashboardView = ({ currentUser, logout }) => {
             { id: 'voice-reconciliation', icon: 'M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z', label: 'Voice Reconciliation' },
             { id: 'transactions', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01', label: 'Transactions' },
             { id: 'parties', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', label: 'Parties' },
-            { id: 'inventory', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', label: 'Inventory' },
             { id: 'reports', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', label: 'Reports' },
             { id: 'insights', icon: 'M13 10V3L4 14h7v7l9-11h-7z', label: 'Smart Insights' },
             { id: 'alerts', icon: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9', label: 'Alerts', badge: unreadAlertCount },
             { id: 'data', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4', label: 'Data Management' },
             { id: 'scanner', icon: 'M3 9l3-3h10l-3 3M4 10v6a2 2 0 002 2h12a2 2 0 002-2v-6M4 10V5a2 2 0 012-2h3v5', label: 'Scan Invoice' },
+            { id: 'e-invoice', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', label: 'E-Invoice' },
+            { id: 'gst-returns', icon: 'M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z', label: 'GST Returns' },
+            { id: 'inventory', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', label: 'Inventory' },
+            { id: 'banking', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z', label: 'Banking' },
+            { id: 'payments', icon: 'M3 10h18M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z', label: 'Payments' },
+            { id: 'expenses', icon: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z', label: 'Expenses' },
+            { id: 'budgets', icon: 'M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z', label: 'Budgets' },
+            { id: 'vendors', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', label: 'Vendors' },
+            { id: 'projects', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01', label: 'Projects' },
+            { id: 'users', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z', label: 'User Management' },
+            { id: 'ewaybill', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', label: 'E-Way Bill' },
+            { id: 'api-settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z', label: 'API & Integrations' },
+            { id: 'analytics', icon: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z', label: 'AI Analytics' },
+            { id: 'currency', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', label: 'Multi-Currency' },
+            { id: 'voice-settings', icon: 'M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z', label: 'Voice Settings' },
+            { id: 'security-settings', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z', label: 'Security' },
+            { id: 'notifications', icon: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9', label: 'Notifications' },
+            { id: 'ai-insights', icon: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z', label: 'AI Insights' },
+            { id: 'cash-leak-finder', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', label: 'Cash Leak Finder' },
           ].map(item => (
             <li key={item.id}>
               <button
@@ -848,140 +889,7 @@ const DashboardView = ({ currentUser, logout }) => {
 
   // Render reports view
   const renderReports = () => (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-800">Reports</h1>
-        <p className="text-slate-500 mt-1">Generate and export comprehensive financial reports.</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[
-          { type: 'sales', title: 'Sales Report', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z', description: 'Daily, weekly, monthly sales analysis' },
-          { type: 'gst', title: 'GST Report', icon: 'M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z', description: 'GSTR-1 and GSTR-3B ready reports' },
-          { type: 'profit_loss', title: 'Profit & Loss', icon: 'M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z', description: 'Income, expenses, and profit analysis' },
-          { type: 'balance_sheet', title: 'Balance Sheet', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', description: 'Assets, liabilities, and equity overview' },
-          { type: 'cash_flow', title: 'Cash Flow', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', description: 'Cash inflows and outflows' },
-          { type: 'outstanding_aging', title: 'Outstanding Aging', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', description: 'Receivables aging analysis' },
-          { type: 'expense', title: 'Expense Summary', icon: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z', description: 'Category-wise expense breakdown' },
-        ].map((report, idx) => (
-          <button
-            key={idx}
-            onClick={() => generateReport(report.type, new Date().toISOString().split('T')[0])}
-            className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-left hover:shadow-md hover:border-cyan-300 transition-all"
-          >
-            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center mb-4`}>
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={report.icon} />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-slate-800 mb-1">{report.title}</h3>
-            <p className="text-sm text-slate-500">{report.description}</p>
-          </button>
-        ))}
-      </div>
-
-      {/* Report Display */}
-      {showReports && currentReport && (
-        <div className="mt-8 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-slate-800">{currentReport.title}</h2>
-            <div className="flex gap-2">
-              <button className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm hover:bg-slate-200">
-                PDF
-              </button>
-              <button className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm hover:bg-slate-200">
-                Excel
-              </button>
-              <button className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm hover:bg-slate-200">
-                Print
-              </button>
-              <button
-                onClick={() => setShowReports(false)}
-                className="px-4 py-2 text-slate-500 hover:text-slate-700"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-          
-          {/* Report Content */}
-          <div className="overflow-x-auto">
-            {currentReport.type === 'sales' && salesReport && (
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-200">
-                    <th className="text-left py-3 px-4 text-slate-600 font-medium">Total Sales</th>
-                    <th className="text-left py-3 px-4 text-slate-600 font-medium">Transactions</th>
-                    <th className="text-left py-3 px-4 text-slate-600 font-medium">GST Collected</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-slate-100">
-                    <td className="py-3 px-4 font-semibold">{formatCurrency(salesReport.summary?.total_sales)}</td>
-                    <td className="py-3 px-4">{salesReport.summary?.transaction_count}</td>
-                    <td className="py-3 px-4">{formatCurrency(salesReport.summary?.total_gst)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            )}
-            
-            {currentReport.type === 'gst' && gstReport && (
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-200">
-                    <th className="text-left py-3 px-4 text-slate-600 font-medium">GST Rate</th>
-                    <th className="text-left py-3 px-4 text-slate-600 font-medium">Sales</th>
-                    <th className="text-left py-3 px-4 text-slate-600 font-medium">GST</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {gstReport.salesByGST?.map((item, idx) => (
-                    <tr key={idx} className="border-b border-slate-100">
-                      <td className="py-3 px-4">{item.gst_rate}%</td>
-                      <td className="py-3 px-4">{formatCurrency(item.taxable_amount)}</td>
-                      <td className="py-3 px-4">{formatCurrency(item.total_gst)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            
-            {currentReport.type === 'profit_loss' && profitLoss && (
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-200">
-                    <th className="text-left py-3 px-4 text-slate-600 font-medium">Metric</th>
-                    <th className="text-left py-3 px-4 text-slate-600 font-medium">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-slate-100">
-                    <td className="py-3 px-4">Total Sales</td>
-                    <td className="py-3 px-4">{formatCurrency(profitLoss.sales?.total_sales)}</td>
-                  </tr>
-                  <tr className="border-b border-slate-100">
-                    <td className="py-3 px-4">Total Purchases</td>
-                    <td className="py-3 px-4">{formatCurrency(profitLoss.purchases?.total_purchases)}</td>
-                  </tr>
-                  <tr className="border-b border-slate-100">
-                    <td className="py-3 px-4">Gross Profit</td>
-                    <td className="py-3 px-4">{formatCurrency(profitLoss.gross_profit)}</td>
-                  </tr>
-                  <tr className="border-b border-slate-100">
-                    <td className="py-3 px-4">Total Expenses</td>
-                    <td className="py-3 px-4">{formatCurrency(profitLoss.total_expenses)}</td>
-                  </tr>
-                  <tr className="bg-slate-50">
-                    <td className="py-3 px-4 font-semibold">Net Profit</td>
-                    <td className="py-3 px-4 font-semibold text-green-600">{formatCurrency(profitLoss.net_profit)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+    <ReportsDashboard />
   );
 
   // Render smart insights
@@ -1185,15 +1093,43 @@ const DashboardView = ({ currentUser, logout }) => {
       case 'alerts':
         return renderAlerts();
       case 'transactions':
-        return renderPlaceholder('Transactions', 'View and filter all transactions here.');
+        return <TransactionDashboard />;
       case 'parties':
-        return renderPlaceholder('Parties', 'Manage your customers and vendors here.');
+        return <PartyDashboard />;
       case 'inventory':
-        return renderPlaceholder('Inventory', 'Track your products and stock levels here.');
-      case 'data':
-        return <DataManagementPage />;
-      case 'scanner':
-        return <InvoiceScanner onNavigate={setActiveView} />;
+        return <InventoryDashboard />;
+      case 'banking':
+        return <BankingDashboard />;
+      case 'payments':
+        return <PaymentGatewayDashboard />;
+      case 'expenses':
+        return <ExpenseDashboard />;
+      case 'budgets':
+        return <BudgetDashboard />;
+      case 'vendors':
+        return <VendorDashboard />;
+      case 'projects':
+        return <ProjectDashboard />;
+      case 'users':
+        return <UserManagement />;
+      case 'ewaybill':
+        return <EwaybillDashboard />;
+      case 'api-settings':
+        return <ApiSettings />;
+      case 'analytics':
+        return <AnalyticsDashboard />;
+      case 'currency':
+        return <CurrencyDashboard />;
+      case 'voice-settings':
+        return <VoiceSettingsDashboard />;
+      case 'security-settings':
+        return <SecuritySettingsDashboard />;
+      case 'notifications':
+        return <NotificationDashboard />;
+      case 'ai-insights':
+        return <AIDashboard />;
+      case 'cash-leak-finder':
+        return <CashLeakFinder />;
       default:
         return renderDashboard();
     }
@@ -1205,6 +1141,7 @@ const DashboardView = ({ currentUser, logout }) => {
       <main className="flex-1 overflow-auto">
         {renderContent()}
       </main>
+      <NetworkStatus />
     </div>
   );
 }
